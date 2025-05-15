@@ -33,7 +33,7 @@ import DashboardRouter from "./pages/dashboard/DashboardRouter";
 import AdminPanelPage from "./pages/admin/AdminPanelPage";
 
 // Roles Pages
-import { RolesPage, AddRolePage, RoleDetailsPage, RoleEditPage } from "./pages/roles";
+import { RolesPage, AddRolePage, RoleDetailsPage, RoleEditPage, RolePermissionsPage } from "./pages/roles";
 
 // Branches Pages
 import { BranchesPage, AddBranchPage, BranchDetailsPage, EditBranchPage } from "./pages/branches";
@@ -128,16 +128,7 @@ const App = () => (
             />
 
             {/* Roles Management - For CEO Only */}
-            <Route
-              path="/roles"
-              element={
-                <AuthProtection allowedRoles={['ceo']}>
-                  <MainLayout>
-                    <RolesPage />
-                  </MainLayout>
-                </AuthProtection>
-              }
-            />
+            {/* Note: Order matters! More specific routes must come before less specific ones */}
 
             {/* Add Role - For CEO Only */}
             <Route
@@ -146,6 +137,30 @@ const App = () => (
                 <AuthProtection allowedRoles={['ceo']}>
                   <MainLayout>
                     <AddRolePage />
+                  </MainLayout>
+                </AuthProtection>
+              }
+            />
+
+            {/* Edit Role - For CEO Only */}
+            <Route
+              path="/roles/edit/:roleId"
+              element={
+                <AuthProtection allowedRoles={['ceo']}>
+                  <MainLayout>
+                    <RoleEditPage />
+                  </MainLayout>
+                </AuthProtection>
+              }
+            />
+
+            {/* Role Permissions - For CEO Only */}
+            <Route
+              path="/roles/permissions/:roleId"
+              element={
+                <AuthProtection allowedRoles={['ceo']}>
+                  <MainLayout>
+                    <RolePermissionsPage />
                   </MainLayout>
                 </AuthProtection>
               }
@@ -163,13 +178,13 @@ const App = () => (
               }
             />
 
-            {/* Edit Role - For CEO Only */}
+            {/* Roles List - For CEO Only */}
             <Route
-              path="/roles/edit/:roleId"
+              path="/roles"
               element={
                 <AuthProtection allowedRoles={['ceo']}>
                   <MainLayout>
-                    <RoleEditPage />
+                    <RolesPage />
                   </MainLayout>
                 </AuthProtection>
               }

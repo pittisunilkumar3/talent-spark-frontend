@@ -12,17 +12,25 @@ interface AuthProtectionProps {
 const AuthProtection = ({ children, allowedRoles = [] }: AuthProtectionProps) => {
   const { user } = useAuth();
 
+  console.log('AuthProtection - Current user:', user);
+  console.log('AuthProtection - Allowed roles:', allowedRoles);
+
   // If not logged in, redirect to login
   if (!user) {
+    console.log('AuthProtection - No user, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
   // Check if user has permission (admin always has permission)
-  if (hasPermission(user.role, allowedRoles)) {
+  const hasAccess = hasPermission(user.role, allowedRoles);
+  console.log('AuthProtection - Has permission:', hasAccess);
+
+  if (hasAccess) {
     return <>{children}</>;
   }
 
   // If user doesn't have required role, redirect to dashboard
+  console.log('AuthProtection - Insufficient permissions, redirecting to dashboard');
   return <Navigate to="/dashboard" replace />;
 };
 

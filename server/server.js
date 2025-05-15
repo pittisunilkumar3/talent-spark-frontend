@@ -1,0 +1,86 @@
+const express = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
+const helmet = require('helmet');
+const sequelize = require('./config/database');
+require('dotenv').config();
+
+// Import routes
+const roleRoutes = require('./routes/roleRoutes');
+
+// Initialize express app
+const app = express();
+
+// Middleware
+// Configure CORS to allow requests from the frontend
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.FRONTEND_URL || 'http://localhost:5173'
+    : '*', // Allow all origins in development
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' } // Allow cross-origin resource sharing
+}));
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Handle OPTIONS requests for CORS preflight
+app.options('*', cors(corsOptions));
+
+// API routes
+app.use('/api/roles', roleRoutes);
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Welcome to QORE API',
+    version: '1.0.0',
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+  });
+});
+
+// Start server
+const PORT = process.env.PORT || 3001;
+
+// Test database connection and sync models
+const startServer = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Database connection has been established successfully.');
+
+    // Sync models with database
+    await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
+    console.log('Database models synchronized.');
+
+    // Setup model associations
+    const { setupAssociations: setupRoleAssociations } = require('./models/Role');
+    const { setupAssociations: setupUserAssociations } = require('./models/User');
+
+    setupRoleAssociations();
+    setupUserAssociations();
+
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Unable to connect to the database:', error);
+  }
+};
+
+startServer();

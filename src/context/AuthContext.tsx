@@ -84,7 +84,8 @@ const demoUsers: Record<UserRole, User> = {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // Initialize with CEO user for testing purposes
+  const [user, setUser] = useState<User | null>(demoUsers['ceo']);
 
   // For demo purposes only
   const login = async (email: string, password: string) => {

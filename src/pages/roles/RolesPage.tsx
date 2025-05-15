@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -27,104 +27,139 @@ import {
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Search, 
-  Plus, 
-  MoreHorizontal, 
-  Edit, 
-  Trash, 
-  UserCheck, 
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  Edit,
+  Trash,
+  UserCheck,
   Shield,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
-
-// Mock roles data
-const mockRoles = [
-  { 
-    id: '1', 
-    name: 'CEO', 
-    key: 'ceo', 
-    description: 'Full access to all features and settings', 
-    permissions: ['all'], 
-    userCount: 1 
-  },
-  { 
-    id: '2', 
-    name: 'Branch Manager', 
-    key: 'branch-manager', 
-    description: 'Manages a specific branch location', 
-    permissions: ['branch.*', 'users.view', 'users.edit'], 
-    userCount: 3 
-  },
-  { 
-    id: '3', 
-    name: 'Marketing Head', 
-    key: 'marketing-head', 
-    description: 'Leads the marketing department', 
-    permissions: ['marketing.*', 'users.view'], 
-    userCount: 2 
-  },
-  { 
-    id: '4', 
-    name: 'Marketing Supervisor', 
-    key: 'marketing-supervisor', 
-    description: 'Supervises marketing team members', 
-    permissions: ['marketing.view', 'marketing.edit', 'users.view'], 
-    userCount: 4 
-  },
-  { 
-    id: '5', 
-    name: 'Marketing Recruiter', 
-    key: 'marketing-recruiter', 
-    description: 'Handles candidate recruitment', 
-    permissions: ['candidates.*', 'resume.*'], 
-    userCount: 8 
-  },
-  { 
-    id: '6', 
-    name: 'Marketing Associate', 
-    key: 'marketing-associate', 
-    description: 'Assists with marketing activities', 
-    permissions: ['marketing.view', 'candidates.view'], 
-    userCount: 12 
-  },
-  { 
-    id: '7', 
-    name: 'Applicant', 
-    key: 'applicant', 
-    description: 'External job applicant', 
-    permissions: ['application.view', 'application.edit'], 
-    userCount: 45 
-  },
-];
+import { roleService, Role } from '@/services/roleService';
 
 const RolesPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Filter roles based on search query
-  const filteredRoles = mockRoles.filter(role => 
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    pages: 0
+  });
+
+  // Fetch roles
+  useEffect(() => {
+    const fetchRoles = async () => {
+      setIsLoading(true);
+      try {
+        const params: any = {
+          page: pagination.page,
+          limit: pagination.limit
+        };
+
+        if (searchQuery) {
+          params.search = searchQuery;
+        }
+
+        const response = await roleService.getRoles(params);
+
+        if (response.data) {
+          setRoles(response.data);
+          if (response.pagination) {
+            setPagination(response.pagination);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching roles:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load roles. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRoles();
+  }, [pagination.page, pagination.limit, searchQuery, toast]);
+
+  // Filter roles based on search query for client-side filtering
+  const filteredRoles = roles.filter(role =>
     role.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     role.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Handle role actions
-  const handleViewRole = (roleId: string) => {
+  const handleViewRole = (roleId: number) => {
+    console.log('Navigating to view role:', roleId);
     navigate(`/roles/${roleId}`);
   };
 
-  const handleEditRole = (roleId: string) => {
+  const handleEditRole = (roleId: number) => {
+    console.log('Navigating to edit role:', roleId);
     navigate(`/roles/edit/${roleId}`);
   };
 
-  const handleDeleteRole = (roleId: string) => {
-    // In a real app, this would call an API to delete the role
-    toast({
-      title: "Role deletion",
-      description: "This feature is not implemented yet.",
-    });
+  const handleAssignPermissions = (roleId: number) => {
+    console.log('Navigating to role permissions:', roleId);
+    navigate(`/roles/permissions/${roleId}`);
+  };
+
+  const handleDeleteRole = async (roleId: number) => {
+    if (window.confirm('Are you sure you want to delete this role? This action cannot be undone.')) {
+      try {
+        // Show loading state
+        toast({
+          title: "Deleting role...",
+          description: "Please wait while we process your request.",
+        });
+
+        // Call the delete API
+        const response = await roleService.deleteRole(roleId);
+
+        // Show success message with information about affected rows
+        toast({
+          title: "Role deleted",
+          description: `${response.message} (${response.result?.affectedRows || 0} row affected)`,
+        });
+
+        // Refresh the roles list
+        const rolesResponse = await roleService.getRoles({
+          page: pagination.page,
+          limit: pagination.limit
+        });
+
+        if (rolesResponse.data) {
+          setRoles(rolesResponse.data);
+          if (rolesResponse.pagination) {
+            setPagination(rolesResponse.pagination);
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting role:', error);
+
+        // Display a more specific error message
+        let errorMessage = "Failed to delete the role. Please try again.";
+
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   const handleAddRole = () => {
@@ -164,80 +199,119 @@ const RolesPage = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Role Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Users</TableHead>
-                <TableHead>Permissions</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRoles.map((role) => (
-                <TableRow key={role.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center">
-                      <Shield className="h-4 w-4 mr-2 text-primary" />
-                      {role.name}
-                    </div>
-                  </TableCell>
-                  <TableCell>{role.description}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{role.userCount}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {role.permissions.slice(0, 2).map((permission, index) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
-                          {permission}
-                        </Badge>
-                      ))}
-                      {role.permissions.length > 2 && (
-                        <Badge variant="secondary" className="text-xs">
-                          +{role.permissions.length - 2} more
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Open menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewRole(role.id)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEditRole(role.id)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Role
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteRole(role.id)}
-                          disabled={role.key === 'ceo'} // Prevent deleting CEO role
-                          className={role.key === 'ceo' ? 'text-muted-foreground' : 'text-destructive'}
-                        >
-                          <Trash className="mr-2 h-4 w-4" />
-                          Delete Role
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2">Loading roles...</span>
+            </div>
+          ) : roles.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No roles found. {searchQuery ? 'Try a different search term.' : 'Create your first role by clicking "Add New Role".'}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Role Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredRoles.map((role) => (
+                  <TableRow key={role.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center">
+                        <Shield className="h-4 w-4 mr-2 text-primary" />
+                        {role.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{role.description}</TableCell>
+                    <TableCell>
+                      {role.Branch ? (
+                        <Badge variant="outline">{role.Branch.name}</Badge>
+                      ) : (
+                        <Badge variant="outline">Global</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{role.priority}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {role.is_active ? (
+                        <Badge variant="success">Active</Badge>
+                      ) : (
+                        <Badge variant="destructive">Inactive</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewRole(role.id)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditRole(role.id)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Role
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAssignPermissions(role.id)}>
+                            <Shield className="mr-2 h-4 w-4" />
+                            Assign Permissions
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteRole(role.id)}
+                            disabled={role.is_system} // Prevent deleting system roles
+                            className={role.is_system ? 'text-muted-foreground' : 'text-destructive'}
+                          >
+                            <Trash className="mr-2 h-4 w-4" />
+                            Delete Role
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {filteredRoles.length} of {mockRoles.length} roles
+            Showing {filteredRoles.length} of {pagination.total} roles
           </p>
+          {pagination.pages > 1 && (
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+                disabled={pagination.page === 1 || isLoading}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {pagination.page} of {pagination.pages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.pages, prev.page + 1) }))}
+                disabled={pagination.page === pagination.pages || isLoading}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </CardFooter>
       </Card>
     </div>

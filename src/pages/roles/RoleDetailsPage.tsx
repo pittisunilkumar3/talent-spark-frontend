@@ -12,75 +12,19 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  ArrowLeft, 
-  Edit, 
-  Trash, 
+import {
+  ArrowLeft,
+  Edit,
+  Trash,
   Shield,
   Users,
   Check,
-  X
+  X,
+  Loader2,
+  Calendar,
+  Building
 } from 'lucide-react';
-
-// Mock roles data - same as in RolesPage
-const mockRoles = [
-  { 
-    id: '1', 
-    name: 'CEO', 
-    key: 'ceo', 
-    description: 'Full access to all features and settings', 
-    permissions: ['all'], 
-    userCount: 1 
-  },
-  { 
-    id: '2', 
-    name: 'Branch Manager', 
-    key: 'branch-manager', 
-    description: 'Manages a specific branch location', 
-    permissions: ['branch.*', 'users.view', 'users.edit'], 
-    userCount: 3 
-  },
-  { 
-    id: '3', 
-    name: 'Marketing Head', 
-    key: 'marketing-head', 
-    description: 'Leads the marketing department', 
-    permissions: ['marketing.*', 'users.view'], 
-    userCount: 2 
-  },
-  { 
-    id: '4', 
-    name: 'Marketing Supervisor', 
-    key: 'marketing-supervisor', 
-    description: 'Supervises marketing team members', 
-    permissions: ['marketing.view', 'marketing.edit', 'users.view'], 
-    userCount: 4 
-  },
-  { 
-    id: '5', 
-    name: 'Marketing Recruiter', 
-    key: 'marketing-recruiter', 
-    description: 'Handles candidate recruitment', 
-    permissions: ['candidates.*', 'resume.*'], 
-    userCount: 8 
-  },
-  { 
-    id: '6', 
-    name: 'Marketing Associate', 
-    key: 'marketing-associate', 
-    description: 'Assists with marketing activities', 
-    permissions: ['marketing.view', 'candidates.view'], 
-    userCount: 12 
-  },
-  { 
-    id: '7', 
-    name: 'Applicant', 
-    key: 'applicant', 
-    description: 'External job applicant', 
-    permissions: ['application.view', 'application.edit'], 
-    userCount: 45 
-  },
-];
+import { roleService, Role } from '@/services/roleService';
 
 // Mock permission categories - same as in AddRolePage
 const permissionCategories = [
@@ -138,11 +82,11 @@ const permissionCategories = [
 // Helper function to check if a role has a specific permission
 const hasPermission = (rolePermissions: string[], permissionId: string): boolean => {
   if (rolePermissions.includes('all')) return true;
-  
+
   // Check for wildcard permissions (e.g., 'users.*' includes 'users.view')
   const wildcardPrefix = permissionId.split('.')[0] + '.*';
   if (rolePermissions.includes(wildcardPrefix)) return true;
-  
+
   return rolePermissions.includes(permissionId);
 };
 
@@ -150,43 +94,114 @@ const RoleDetailsPage = () => {
   const { roleId } = useParams<{ roleId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [role, setRole] = useState<typeof mockRoles[0] | null>(null);
-  
+  const [role, setRole] = useState<Role | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [permissions, setPermissions] = useState<string[]>([]);
+
   useEffect(() => {
-    // In a real app, this would be an API call
-    const foundRole = mockRoles.find(r => r.id === roleId);
-    if (foundRole) {
-      setRole(foundRole);
-    } else {
-      toast({
-        title: "Role not found",
-        description: "The requested role could not be found.",
-        variant: "destructive",
-      });
-      navigate('/roles');
-    }
+    const fetchRoleDetails = async () => {
+      setIsLoading(true);
+      try {
+        if (!roleId) {
+          toast({
+            title: "Invalid role ID",
+            description: "No role ID was provided.",
+            variant: "destructive",
+          });
+          navigate('/roles');
+          return;
+        }
+
+        const response = await roleService.getRoleById(roleId);
+
+        if (response.success && response.data) {
+          setRole(response.data);
+          // For now, we'll use mock permissions until we implement the permissions API
+          setPermissions(['users.view', 'users.edit']);
+        } else {
+          toast({
+            title: "Role not found",
+            description: "The requested role could not be found.",
+            variant: "destructive",
+          });
+          navigate('/roles');
+        }
+      } catch (error) {
+        console.error('Error fetching role details:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load role details. Please try again.",
+          variant: "destructive",
+        });
+        navigate('/roles');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRoleDetails();
   }, [roleId, navigate, toast]);
-  
+
   const handleEditRole = () => {
     navigate(`/roles/edit/${roleId}`);
   };
-  
-  const handleDeleteRole = () => {
-    // In a real app, this would call an API to delete the role
-    toast({
-      title: "Role deletion",
-      description: "This feature is not implemented yet.",
-    });
+
+  const handleDeleteRole = async () => {
+    if (window.confirm('Are you sure you want to delete this role? This action cannot be undone.')) {
+      try {
+        // Show loading state
+        toast({
+          title: "Deleting role...",
+          description: "Please wait while we process your request.",
+        });
+
+        // Call the delete API
+        const response = await roleService.deleteRole(roleId);
+
+        // Show success message with information about affected rows
+        toast({
+          title: "Role deleted",
+          description: `${response.message} (${response.result?.affectedRows || 0} row affected)`,
+        });
+
+        // Navigate back to roles list
+        navigate('/roles');
+      } catch (error) {
+        console.error('Error deleting role:', error);
+
+        // Display a more specific error message
+        let errorMessage = "Failed to delete the role. Please try again.";
+
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    }
   };
-  
-  if (!role) {
+
+  if (isLoading) {
     return (
-      <div className="container mx-auto py-6 flex justify-center">
+      <div className="container mx-auto py-6 flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
         <p>Loading role details...</p>
       </div>
     );
   }
-  
+
+  if (!role) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center">
+        <p>Role not found.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center">
@@ -208,17 +223,17 @@ const RoleDetailsPage = () => {
             <Edit className="h-4 w-4 mr-2" />
             Edit Role
           </Button>
-          <Button 
-            variant="destructive" 
+          <Button
+            variant="destructive"
             onClick={handleDeleteRole}
-            disabled={role.key === 'ceo'} // Prevent deleting CEO role
+            disabled={role.is_system} // Prevent deleting system roles
           >
             <Trash className="h-4 w-4 mr-2" />
             Delete Role
           </Button>
         </div>
       </div>
-      
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -234,24 +249,68 @@ const RoleDetailsPage = () => {
                 <p className="text-base">{role.name}</p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Role Key</h3>
-                <p className="text-base font-mono">{role.key}</p>
+                <h3 className="text-sm font-medium text-muted-foreground">Role Slug</h3>
+                <p className="text-base font-mono">{role.slug}</p>
               </div>
               <div className="col-span-2">
                 <h3 className="text-sm font-medium text-muted-foreground">Description</h3>
                 <p className="text-base">{role.description}</p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Users with this role</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">Branch</h3>
                 <div className="flex items-center mt-1">
-                  <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <Badge variant="outline">{role.userCount}</Badge>
+                  <Building className="h-4 w-4 mr-2 text-muted-foreground" />
+                  {role.Branch ? (
+                    <Badge variant="outline">{role.Branch.name}</Badge>
+                  ) : (
+                    <Badge variant="outline">Global</Badge>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Priority</h3>
+                <div className="flex items-center mt-1">
+                  <Badge variant="secondary">{role.priority}</Badge>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
+                <div className="flex items-center mt-1">
+                  {role.is_active ? (
+                    <Badge variant="success">Active</Badge>
+                  ) : (
+                    <Badge variant="destructive">Inactive</Badge>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">System Role</h3>
+                <div className="flex items-center mt-1">
+                  {role.is_system ? (
+                    <Badge variant="outline" className="bg-primary/10">Yes</Badge>
+                  ) : (
+                    <Badge variant="outline">No</Badge>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Created At</h3>
+                <div className="flex items-center mt-1">
+                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <span>{new Date(role.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Last Updated</h3>
+                <div className="flex items-center mt-1">
+                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <span>{role.updated_at ? new Date(role.updated_at).toLocaleDateString() : 'Never'}</span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Role Permissions</CardTitle>
@@ -266,7 +325,7 @@ const RoleDetailsPage = () => {
                   <h3 className="font-medium mb-2">{category.name}</h3>
                   <div className="grid grid-cols-2 gap-2">
                     {category.permissions.map((permission) => {
-                      const hasAccess = hasPermission(role.permissions, permission.id);
+                      const hasAccess = hasPermission(permissions, permission.id);
                       return (
                         <div key={permission.id} className="flex items-center">
                           {hasAccess ? (
@@ -283,13 +342,28 @@ const RoleDetailsPage = () => {
                   </div>
                 </div>
               ))}
-              
-              {role.permissions.includes('all') && (
+
+              {permissions.includes('all') && (
                 <div className="bg-primary/10 p-3 rounded-md mt-4">
                   <p className="text-sm font-medium flex items-center">
                     <Shield className="h-4 w-4 mr-2 text-primary" />
                     This role has full system access (all permissions)
                   </p>
+                </div>
+              )}
+
+              {permissions.length === 0 && (
+                <div className="border border-dashed rounded-md p-4 text-center text-muted-foreground">
+                  <p>No permissions have been assigned to this role yet.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => navigate(`/roles/permissions/${roleId}`)}
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Assign Permissions
+                  </Button>
                 </div>
               )}
             </div>
