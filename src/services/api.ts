@@ -1,8 +1,13 @@
 import axios from 'axios';
 
 // Get API base URL from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 console.log('API Base URL:', API_BASE_URL);
+
+// Warn if API URL is not set or using fallback
+if (!import.meta.env.VITE_API_BASE_URL) {
+  console.warn('VITE_API_BASE_URL environment variable is not set. Using fallback URL:', API_BASE_URL);
+}
 
 // Create axios instance
 const apiClient = axios.create({
@@ -105,3 +110,5 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
+
+

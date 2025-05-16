@@ -60,9 +60,11 @@ import SettingsPage from "./pages/settings/SettingsPage";
 
 // Teams Pages
 import TeamsPage from "./pages/teams/TeamsPage";
-import ProfilesPage from "./pages/teams/ProfilesPage";
 import TeamDetailsPage from "./pages/teams/TeamDetailsPage";
 import ProfileDetailsPage from "./pages/teams/ProfileDetailsPage";
+
+// Profiles Page
+import ProfilesPage from "./pages/profiles/ProfilesPage";
 
 // Reports Page
 import ReportsPage from "./pages/reports/ReportsPage";

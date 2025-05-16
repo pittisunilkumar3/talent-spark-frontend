@@ -2,77 +2,53 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, Shield, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { roleService, Role } from '@/services/roleService';
 
-// Mock permission categories - same as in AddRolePage
-const permissionCategories = [
+// Define permission modules and features
+const permissionModules = [
   {
-    id: 'users',
-    name: 'User Management',
-    permissions: [
-      { id: 'users.view', name: 'View Users' },
-      { id: 'users.create', name: 'Create Users' },
-      { id: 'users.edit', name: 'Edit Users' },
-      { id: 'users.delete', name: 'Delete Users' },
+    id: 'student-information',
+    name: 'Student Information',
+    features: [
+      { id: 'student', name: 'Student' },
+      { id: 'import-student', name: 'Import Student' },
+      { id: 'student-categories', name: 'Student Categories' },
+      { id: 'student-houses', name: 'Student Houses' },
+      { id: 'disable-student', name: 'Disable Student' },
+      { id: 'student-timeline', name: 'Student Timeline' },
+      { id: 'disable-reason', name: 'Disable Reason' },
     ],
   },
   {
-    id: 'roles',
-    name: 'Role Management',
-    permissions: [
-      { id: 'roles.view', name: 'View Roles' },
-      { id: 'roles.create', name: 'Create Roles' },
-      { id: 'roles.edit', name: 'Edit Roles' },
-      { id: 'roles.delete', name: 'Delete Roles' },
+    id: 'fees-collection',
+    name: 'Fees Collection',
+    features: [
+      { id: 'collect-fees', name: 'Collect Fees' },
+      { id: 'fees-carry-forward', name: 'Fees Carry Forward' },
+      { id: 'fees-master', name: 'Fees Master' },
+      { id: 'fees-group', name: 'Fees Group' },
+      { id: 'fees-group-assign', name: 'Fees Group Assign' },
+      { id: 'fees-type', name: 'Fees Type' },
+      { id: 'fees-discount', name: 'Fees Discount' },
+      { id: 'fees-discount-assign', name: 'Fees Discount Assign' },
+      { id: 'search-fees-payment', name: 'Search Fees Payment' },
+      { id: 'search-due-fees', name: 'Search Due Fees' },
+      { id: 'fees-reminder', name: 'Fees Reminder' },
+      { id: 'offline-bank-payments', name: 'Offline Bank Payments' },
     ],
   },
-  {
-    id: 'jobs',
-    name: 'Job Management',
-    permissions: [
-      { id: 'jobs.view', name: 'View Jobs' },
-      { id: 'jobs.create', name: 'Create Jobs' },
-      { id: 'jobs.edit', name: 'Edit Jobs' },
-      { id: 'jobs.delete', name: 'Delete Jobs' },
-    ],
-  },
-  {
-    id: 'candidates',
-    name: 'Candidate Management',
-    permissions: [
-      { id: 'candidates.view', name: 'View Candidates' },
-      { id: 'candidates.create', name: 'Create Candidates' },
-      { id: 'candidates.edit', name: 'Edit Candidates' },
-      { id: 'candidates.delete', name: 'Delete Candidates' },
-    ],
-  },
-  {
-    id: 'interviews',
-    name: 'Interview Management',
-    permissions: [
-      { id: 'interviews.view', name: 'View Interviews' },
-      { id: 'interviews.schedule', name: 'Schedule Interviews' },
-      { id: 'interviews.feedback', name: 'Provide Interview Feedback' },
-    ],
-  },
+];
+
+// Permission types
+const permissionTypes = [
+  { id: 'view', name: 'View' },
+  { id: 'add', name: 'Add' },
+  { id: 'edit', name: 'Edit' },
+  { id: 'delete', name: 'Delete' },
 ];
 
 const RolePermissionsPage = () => {
@@ -81,7 +57,7 @@ const RolePermissionsPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [role, setRole] = useState<Role | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissions, setPermissions] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -103,8 +79,21 @@ const RolePermissionsPage = () => {
 
         if (response.success && response.data) {
           setRole(response.data);
-          // For now, we'll use mock permissions until we implement the permissions API
-          setPermissions(['users.view', 'users.edit']);
+          // Initialize with mock permissions
+          // In a real implementation, you would fetch the actual permissions from the API
+          const mockPermissions: Record<string, string[]> = {};
+          permissionModules.forEach(module => {
+            module.features.forEach(feature => {
+              // For demonstration, set some default permissions
+              mockPermissions[feature.id] = ['view'];
+              // For specific features, add more permissions
+              if (['student', 'student-categories', 'student-houses', 'student-timeline', 'disable-reason',
+                   'fees-master', 'fees-group', 'fees-type', 'fees-discount'].includes(feature.id)) {
+                mockPermissions[feature.id] = ['view', 'add', 'edit', 'delete'];
+              }
+            });
+          });
+          setPermissions(mockPermissions);
         } else {
           toast({
             title: "Role not found",
@@ -129,57 +118,37 @@ const RolePermissionsPage = () => {
     fetchRoleDetails();
   }, [roleId, navigate, toast]);
 
-  const handlePermissionChange = (permissionId: string, checked: boolean) => {
-    setPermissions(prev =>
-      checked
-        ? [...prev, permissionId]
-        : prev.filter(id => id !== permissionId)
-    );
+  const handlePermissionChange = (featureId: string, permissionType: string, checked: boolean) => {
+    setPermissions(prev => {
+      const updatedPermissions = { ...prev };
+
+      if (!updatedPermissions[featureId]) {
+        updatedPermissions[featureId] = [];
+      }
+
+      if (checked) {
+        if (!updatedPermissions[featureId].includes(permissionType)) {
+          updatedPermissions[featureId] = [...updatedPermissions[featureId], permissionType];
+        }
+      } else {
+        updatedPermissions[featureId] = updatedPermissions[featureId].filter(p => p !== permissionType);
+      }
+
+      return updatedPermissions;
+    });
   };
 
-  const handleCategorySelectAll = (categoryId: string, checked: boolean) => {
-    const category = permissionCategories.find(cat => cat.id === categoryId);
-    if (!category) return;
-
-    const categoryPermissionIds = category.permissions.map(p => p.id);
-
-    setPermissions(prev =>
-      checked
-        ? [...new Set([...prev, ...categoryPermissionIds])]
-        : prev.filter(id => !categoryPermissionIds.includes(id))
-    );
-  };
-
-  const isCategorySelected = (categoryId: string) => {
-    const category = permissionCategories.find(cat => cat.id === categoryId);
-    if (!category) return false;
-
-    return category.permissions.every(p => permissions.includes(p.id));
-  };
-
-  const isPermissionSelected = (permissionId: string) => {
-    return permissions.includes(permissionId);
+  const isPermissionSelected = (featureId: string, permissionType: string) => {
+    return permissions[featureId]?.includes(permissionType) || false;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    if (permissions.length === 0) {
-      toast({
-        title: "Validation Error",
-        description: "Please select at least one permission for this role.",
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
       // In a real implementation, we would call an API to update the role permissions
       // For now, we'll just simulate a successful update
-
-      // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       toast({
@@ -218,119 +187,93 @@ const RolePermissionsPage = () => {
     );
   }
 
-  // Prevent editing system roles
-  const isSystemRole = role.is_system;
-
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center">
+      <div className="flex items-center mb-6">
         <Button variant="ghost" onClick={() => navigate('/roles')} className="mr-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Roles
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center">
-            <Shield className="h-6 w-6 mr-2 text-primary" />
-            {role.name} - Permissions
-          </h1>
-          <p className="text-muted-foreground">
-            Manage permissions for this role
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold">Assign Permission ({role.name})</h1>
       </div>
 
       <form onSubmit={handleSubmit}>
         <Card>
-          <CardHeader>
-            <CardTitle>Role Permissions</CardTitle>
-            <CardDescription>
-              Select the permissions for this role
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isSystemRole ? (
-              <div className="bg-primary/10 p-4 rounded-md mb-4">
-                <p className="text-sm flex items-center">
-                  <Shield className="h-4 w-4 mr-2 text-primary" />
-                  System roles have predefined permissions that cannot be modified.
-                </p>
-              </div>
-            ) : null}
-
-            <Accordion type="multiple" className="w-full">
-              {permissionCategories.map((category) => (
-                <AccordionItem key={category.id} value={category.id}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`category-${category.id}`}
-                        checked={isCategorySelected(category.id)}
-                        onCheckedChange={(checked) =>
-                          handleCategorySelectAll(category.id, checked as boolean)
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={isSystemRole || isSubmitting}
-                      />
-                      <Label
-                        htmlFor={`category-${category.id}`}
-                        className="text-sm font-medium"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {category.name}
-                      </Label>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="ml-6 space-y-2">
-                      {category.permissions.map((permission) => (
-                        <div key={permission.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={permission.id}
-                            checked={isPermissionSelected(permission.id)}
-                            onCheckedChange={(checked) =>
-                              handlePermissionChange(permission.id, checked as boolean)
-                            }
-                            disabled={isSystemRole || isSubmitting}
-                          />
-                          <Label
-                            htmlFor={permission.id}
-                            className="text-sm"
-                          >
-                            {permission.name}
-                          </Label>
-                        </div>
+          <CardContent className="p-6">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left py-3 px-4 font-medium text-gray-700 w-1/4">Module</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-700 w-1/4">Feature</th>
+                    {permissionTypes.map(type => (
+                      <th key={type.id} className="text-center py-3 px-4 font-medium text-gray-700">
+                        {type.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {permissionModules.map(module => (
+                    <>
+                      {module.features.map((feature, featureIndex) => (
+                        <tr key={feature.id} className={featureIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                          {featureIndex === 0 ? (
+                            <td
+                              className="py-3 px-4 border-t"
+                              rowSpan={module.features.length}
+                            >
+                              {module.name}
+                            </td>
+                          ) : null}
+                          <td className="py-3 px-4 border-t">{feature.name}</td>
+                          {permissionTypes.map(type => (
+                            <td key={type.id} className="text-center py-3 px-4 border-t">
+                              <Checkbox
+                                id={`${feature.id}-${type.id}`}
+                                checked={isPermissionSelected(feature.id, type.id)}
+                                onCheckedChange={(checked) =>
+                                  handlePermissionChange(feature.id, type.id, checked as boolean)
+                                }
+                                disabled={isSubmitting}
+                                className="mx-auto"
+                              />
+                            </td>
+                          ))}
+                        </tr>
                       ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+                    </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
-          <CardFooter className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate(`/roles/${roleId}`)}
-              className="mr-2"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSystemRole || isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Permissions
-                </>
-              )}
-            </Button>
-          </CardFooter>
         </Card>
+
+        <div className="flex justify-end mt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate(`/roles/${roleId}`)}
+            className="mr-2"
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save Permissions
+              </>
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   );

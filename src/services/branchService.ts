@@ -219,6 +219,71 @@ export const branchService = {
     }
   },
 
+  // Get departments and designations by branch ID
+  getDepartmentsAndDesignationsByBranchId: async (branchId: number | string): Promise<any> => {
+    try {
+      console.log('Fetching departments and designations for branch ID:', branchId);
+
+      // Ensure branch ID is properly formatted
+      const formattedBranchId = typeof branchId === 'string' ? branchId.trim() : branchId;
+
+      // Log the full URL for debugging
+      const url = `/branch/${formattedBranchId}/departments-designations`;
+      console.log('API URL for departments and designations:', apiClient.defaults.baseURL + url);
+
+      try {
+        const response = await apiClient.get(url);
+        console.log('Branch departments and designations response:', response);
+
+        // Return the raw response data
+        return response.data;
+      } catch (apiError: any) {
+        console.error('API error in getDepartmentsAndDesignationsByBranchId:', apiError);
+
+        // Log detailed error information
+        console.error('Error details:', {
+          message: apiError.message,
+          status: apiError.response?.status,
+          statusText: apiError.response?.statusText,
+          data: apiError.response?.data,
+          config: apiError.config
+        });
+
+        // Try a direct fetch as fallback
+        console.log('Attempting direct fetch as fallback...');
+        const apiBaseUrl = apiClient.defaults.baseURL || 'http://localhost:3001/api';
+        const fullUrl = `${apiBaseUrl}/branch/${formattedBranchId}/departments-designations`;
+
+        try {
+          const token = localStorage.getItem('accessToken');
+          const fetchResponse = await fetch(fullUrl, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+          });
+
+          if (fetchResponse.ok) {
+            const data = await fetchResponse.json();
+            console.log('Direct fetch response:', data);
+            return data;
+          } else {
+            console.error('Direct fetch failed with status:', fetchResponse.status);
+            throw new Error(`API returned status ${fetchResponse.status}`);
+          }
+        } catch (fetchError) {
+          console.error('Direct fetch also failed:', fetchError);
+          throw apiError; // Throw the original error
+        }
+      }
+    } catch (error) {
+      console.error('Unexpected error in getDepartmentsAndDesignationsByBranchId:', error);
+      throw error;
+    }
+  },
+
   // Delete branch
   deleteBranch: async (id: number | string): Promise<any> => {
     try {

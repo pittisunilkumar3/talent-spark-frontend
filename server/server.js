@@ -7,6 +7,7 @@ require('dotenv').config();
 
 // Import routes
 const roleRoutes = require('./routes/roleRoutes');
+const employeeRoutes = require('./routes/employeeRoutes');
 
 // Initialize express app
 const app = express();
@@ -36,6 +37,7 @@ app.options('*', cors(corsOptions));
 
 // API routes
 app.use('/api/roles', roleRoutes);
+app.use('/api/employees', employeeRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -71,9 +73,11 @@ const startServer = async () => {
     // Setup model associations
     const { setupAssociations: setupRoleAssociations } = require('./models/Role');
     const { setupAssociations: setupUserAssociations } = require('./models/User');
+    const { setupAssociations: setupEmployeeAssociations } = require('./models/Employee');
 
     setupRoleAssociations();
     setupUserAssociations();
+    setupEmployeeAssociations();
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
