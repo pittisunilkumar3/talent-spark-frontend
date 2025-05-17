@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { roleService, Role } from '@/services/roleService';
+import { permissionService, PermissionGroup } from '@/services/permissionService';
 
 // Define permission modules and features
 const permissionModules = [
@@ -58,7 +59,9 @@ const RolePermissionsPage = () => {
   const { user } = useAuth();
   const [role, setRole] = useState<Role | null>(null);
   const [permissions, setPermissions] = useState<Record<string, string[]>>({});
+  const [permissionGroups, setPermissionGroups] = useState<PermissionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -79,21 +82,10 @@ const RolePermissionsPage = () => {
 
         if (response.success && response.data) {
           setRole(response.data);
-          // Initialize with mock permissions
-          // In a real implementation, you would fetch the actual permissions from the API
-          const mockPermissions: Record<string, string[]> = {};
-          permissionModules.forEach(module => {
-            module.features.forEach(feature => {
-              // For demonstration, set some default permissions
-              mockPermissions[feature.id] = ['view'];
-              // For specific features, add more permissions
-              if (['student', 'student-categories', 'student-houses', 'student-timeline', 'disable-reason',
-                   'fees-master', 'fees-group', 'fees-type', 'fees-discount'].includes(feature.id)) {
-                mockPermissions[feature.id] = ['view', 'add', 'edit', 'delete'];
-              }
-            });
-          });
-          setPermissions(mockPermissions);
+          // Initialize with default permissions
+          // In a real implementation, you would fetch the actual role permissions from the API
+          const defaultPermissions: Record<string, string[]> = {};
+          setPermissions(defaultPermissions);
         } else {
           toast({
             title: "Role not found",
@@ -117,6 +109,66 @@ const RolePermissionsPage = () => {
 
     fetchRoleDetails();
   }, [roleId, navigate, toast]);
+
+  useEffect(() => {
+    const fetchPermissionGroups = async () => {
+      setIsLoadingPermissions(true);
+      try {
+        const response = await permissionService.getPermissionGroupsWithCategories({
+          is_active: true,
+          limit: 100 // Get all active permission groups
+        });
+
+        if (response.success) {
+          console.log('Permission groups response:', response);
+          setPermissionGroups(response.data);
+
+          // Initialize permissions based on categories
+          const initialPermissions: Record<string, string[]> = {};
+          response.data.forEach(group => {
+            console.log('Processing group:', group.name);
+            // Check if PermissionCategories exists and is an array
+            if (group.PermissionCategories && Array.isArray(group.PermissionCategories)) {
+              console.log(`Group ${group.name} has ${group.PermissionCategories.length} categories`);
+              group.PermissionCategories.forEach(category => {
+                console.log('Processing category:', category.name);
+                const permTypes = [];
+                if (category.enable_view) permTypes.push('view');
+                if (category.enable_add) permTypes.push('add');
+                if (category.enable_edit) permTypes.push('edit');
+                if (category.enable_delete) permTypes.push('delete');
+
+                console.log('Category permission types:', permTypes);
+                initialPermissions[category.short_code] = [];
+              });
+            } else {
+              console.log(`Group ${group.name} has no PermissionCategories or PermissionCategories is not an array`);
+            }
+          });
+
+          console.log('Initial permissions:', initialPermissions);
+          setPermissions(prev => ({...prev, ...initialPermissions}));
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to load permission groups. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching permission groups:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load permission groups. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingPermissions(false);
+      }
+    };
+
+    fetchPermissionGroups();
+  }, [toast]);
 
   const handlePermissionChange = (featureId: string, permissionType: string, checked: boolean) => {
     setPermissions(prev => {
@@ -170,11 +222,11 @@ const RolePermissionsPage = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingPermissions) {
     return (
       <div className="container mx-auto py-6 flex justify-center items-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
-        <p>Loading role details...</p>
+        <p>Loading {isLoading ? 'role details' : 'permissions'}...</p>
       </div>
     );
   }
@@ -183,6 +235,30 @@ const RolePermissionsPage = () => {
     return (
       <div className="container mx-auto py-6 flex justify-center">
         <p>Role not found.</p>
+      </div>
+    );
+  }
+
+  // Check if we have any permission groups with categories
+  const hasPermissionCategories = permissionGroups.some(group =>
+    group.PermissionCategories && Array.isArray(group.PermissionCategories) && group.PermissionCategories.length > 0
+  );
+
+  if (permissionGroups.length === 0 || !hasPermissionCategories) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="flex items-center mb-6">
+          <Button variant="ghost" onClick={() => navigate('/roles')} className="mr-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Roles
+          </Button>
+          <h1 className="text-2xl font-bold">Assign Permission ({role.name})</h1>
+        </div>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p>No permission groups or categories found. Please create permission groups and categories first.</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -214,35 +290,43 @@ const RolePermissionsPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {permissionModules.map(module => (
-                    <>
-                      {module.features.map((feature, featureIndex) => (
-                        <tr key={feature.id} className={featureIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                          {featureIndex === 0 ? (
+                  {permissionGroups.map(group => (
+                    <React.Fragment key={group.id}>
+                      {group.PermissionCategories && Array.isArray(group.PermissionCategories) && group.PermissionCategories.map((category, categoryIndex) => (
+                        <tr key={category.id} className={categoryIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                          {categoryIndex === 0 ? (
                             <td
                               className="py-3 px-4 border-t"
-                              rowSpan={module.features.length}
+                              rowSpan={group.PermissionCategories.length}
                             >
-                              {module.name}
+                              {group.name}
                             </td>
                           ) : null}
-                          <td className="py-3 px-4 border-t">{feature.name}</td>
+                          <td className="py-3 px-4 border-t">{category.name}</td>
                           {permissionTypes.map(type => (
                             <td key={type.id} className="text-center py-3 px-4 border-t">
-                              <Checkbox
-                                id={`${feature.id}-${type.id}`}
-                                checked={isPermissionSelected(feature.id, type.id)}
-                                onCheckedChange={(checked) =>
-                                  handlePermissionChange(feature.id, type.id, checked as boolean)
-                                }
-                                disabled={isSubmitting}
-                                className="mx-auto"
-                              />
+                              {/* Only show checkbox if the permission type is enabled for this category */}
+                              {(
+                                (type.id === 'view' && category.enable_view) ||
+                                (type.id === 'add' && category.enable_add) ||
+                                (type.id === 'edit' && category.enable_edit) ||
+                                (type.id === 'delete' && category.enable_delete)
+                              ) ? (
+                                <Checkbox
+                                  id={`${category.short_code}-${type.id}`}
+                                  checked={isPermissionSelected(category.short_code, type.id)}
+                                  onCheckedChange={(checked) =>
+                                    handlePermissionChange(category.short_code, type.id, checked as boolean)
+                                  }
+                                  disabled={isSubmitting}
+                                  className="mx-auto"
+                                />
+                              ) : null}
                             </td>
                           ))}
                         </tr>
                       ))}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

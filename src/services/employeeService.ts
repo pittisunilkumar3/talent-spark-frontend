@@ -298,13 +298,26 @@ export const employeeService = {
   updateEmployee: async (id: number | string, employeeData: Partial<EmployeeCreateData>): Promise<any> => {
     try {
       console.log('Updating employee data:', employeeData);
-      const response = await apiClient.put(`/employees/${id}`, employeeData);
+
+      // Ensure ID is properly formatted
+      const employeeId = typeof id === 'string' ? id.trim() : id;
+
+      // Make the API call
+      const response = await apiClient.put(`/employees/${employeeId}`, employeeData);
       console.log('Update employee response:', response);
 
       // Return the raw response data
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('API error in updateEmployee:', error);
+
+      // If we have a response with error details, return it in a consistent format
+      if (error.response?.data) {
+        console.log('API error response data:', error.response.data);
+        return error.response.data;
+      }
+
+      // Otherwise, throw the error for the caller to handle
       throw error;
     }
   },

@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 
 // HR Pages
 import EmployeeAddPage from "./pages/hr/employees/add";
+import EmployeeEditPage from "./pages/hr/employees/edit";
 import EmployeeAttendancePage from "./pages/hr/attendance";
 import PayrollPage from "./pages/hr/payroll";
 import DepartmentsPage from "./pages/hr/departments";
@@ -33,7 +34,7 @@ import DashboardRouter from "./pages/dashboard/DashboardRouter";
 import AdminPanelPage from "./pages/admin/AdminPanelPage";
 
 // Roles Pages
-import { RolesPage, AddRolePage, RoleDetailsPage, RoleEditPage, RolePermissionsPage } from "./pages/roles";
+import { RolesPage, AddRolePage, RoleDetailsPage, RoleEditPage, RolePermissionsPage, PermissionGroupsPage } from "./pages/roles";
 
 // Branches Pages
 import { BranchesPage, AddBranchPage, BranchDetailsPage, EditBranchPage } from "./pages/branches";
@@ -163,6 +164,18 @@ const App = () => (
                 <AuthProtection allowedRoles={['ceo']}>
                   <MainLayout>
                     <RolePermissionsPage />
+                  </MainLayout>
+                </AuthProtection>
+              }
+            />
+
+            {/* Permission Groups - For CEO Only */}
+            <Route
+              path="/roles/permission-groups"
+              element={
+                <AuthProtection allowedRoles={['ceo']}>
+                  <MainLayout>
+                    <PermissionGroupsPage />
                   </MainLayout>
                 </AuthProtection>
               }
@@ -470,6 +483,18 @@ const App = () => (
                 <AuthProtection allowedRoles={['ceo', 'branch-manager', 'marketing-head', 'marketing-supervisor', 'marketing-recruiter', 'marketing-associate']}>
                   <MainLayout>
                     <EmployeeAddPage />
+                  </MainLayout>
+                </AuthProtection>
+              }
+            />
+
+            {/* Employee Edit */}
+            <Route
+              path="/hr/employees/edit/:employeeId"
+              element={
+                <AuthProtection allowedRoles={['ceo', 'branch-manager', 'marketing-head', 'marketing-supervisor', 'marketing-recruiter', 'marketing-associate']}>
+                  <MainLayout>
+                    <EmployeeEditPage />
                   </MainLayout>
                 </AuthProtection>
               }

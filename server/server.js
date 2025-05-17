@@ -8,6 +8,7 @@ require('dotenv').config();
 // Import routes
 const roleRoutes = require('./routes/roleRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
+const permissionRoutes = require('./routes/permissionRoutes');
 
 // Initialize express app
 const app = express();
@@ -38,6 +39,7 @@ app.options('*', cors(corsOptions));
 // API routes
 app.use('/api/roles', roleRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api', permissionRoutes); // This will register /api/permission-groups-with-categories
 
 // Root route
 app.get('/', (req, res) => {
@@ -74,10 +76,20 @@ const startServer = async () => {
     const { setupAssociations: setupRoleAssociations } = require('./models/Role');
     const { setupAssociations: setupUserAssociations } = require('./models/User');
     const { setupAssociations: setupEmployeeAssociations } = require('./models/Employee');
+    const { setupAssociations: setupPermissionGroupAssociations } = require('./models/PermissionGroup');
+    const { setupAssociations: setupPermissionCategoryAssociations } = require('./models/PermissionCategory');
 
     setupRoleAssociations();
     setupUserAssociations();
     setupEmployeeAssociations();
+    setupPermissionGroupAssociations();
+    setupPermissionCategoryAssociations();
+
+    // Seed data if in development mode
+    if (process.env.NODE_ENV === 'development') {
+      const seedPermissions = require('./seeders/permissionSeeder');
+      await seedPermissions();
+    }
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

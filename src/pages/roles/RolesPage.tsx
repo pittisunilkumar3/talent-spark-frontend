@@ -175,9 +175,14 @@ const RolesPage = () => {
             View and manage user roles and their permissions
           </p>
         </div>
-        <Button onClick={handleAddRole}>
-          <Plus className="mr-2 h-4 w-4" /> Add New Role
-        </Button>
+        <div className="flex space-x-2">
+          <Button variant="outline" onClick={() => navigate('/roles/permission-groups')}>
+            <Shield className="mr-2 h-4 w-4" /> Permission Groups
+          </Button>
+          <Button onClick={handleAddRole}>
+            <Plus className="mr-2 h-4 w-4" /> Add New Role
+          </Button>
+        </div>
       </div>
 
       <Card>

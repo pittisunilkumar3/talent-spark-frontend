@@ -732,12 +732,7 @@ const ProfilesPage = () => {
                             View Profile
                           </DropdownMenuItem>
                           {(adminUser || managerOrHigher) && (
-                            <DropdownMenuItem onClick={() =>
-                              toast({
-                                title: "Edit Profile",
-                                description: `Editing profile for ${employee.first_name} ${employee.last_name || ''}`,
-                              })
-                            }>
+                            <DropdownMenuItem onClick={() => navigate(`/hr/employees/edit/${employee.id}`)}>
                               Edit Profile
                             </DropdownMenuItem>
                           )}
@@ -896,12 +891,7 @@ const ProfilesPage = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {(adminUser || managerOrHigher) && (
-                                <DropdownMenuItem onClick={() =>
-                                  toast({
-                                    title: "Edit Profile",
-                                    description: `Editing profile for ${employee.first_name} ${employee.last_name || ''}`,
-                                  })
-                                }>
+                                <DropdownMenuItem onClick={() => navigate(`/hr/employees/edit/${employee.id}`)}>
                                   Edit Profile
                                 </DropdownMenuItem>
                               )}
