@@ -1,42 +1,40 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-const Role = sequelize.define('Role', {
+const EmployeeRole = sequelize.define('EmployeeRole', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true,
   },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  slug: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-  },
-  description: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
-  branch_id: {
+  employee_id: {
     type: DataTypes.INTEGER,
-    allowNull: true,
+    allowNull: false,
     references: {
-      model: 'Branches',
+      model: 'employees',
       key: 'id',
     },
   },
-  is_system: {
-    type: DataTypes.BOOLEAN,
-    allowNull: false,
-    defaultValue: false,
-  },
-  priority: {
+  role_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 10,
+    references: {
+      model: 'roles',
+      key: 'id',
+    },
+  },
+  branch_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'branches',
+      key: 'id',
+    },
+  },
+  is_primary: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
   },
   is_active: {
     type: DataTypes.BOOLEAN,
@@ -47,7 +45,7 @@ const Role = sequelize.define('Role', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'Users',
+      model: 'users',
       key: 'id',
     },
   },
@@ -55,12 +53,12 @@ const Role = sequelize.define('Role', {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
-      model: 'Users',
+      model: 'users',
       key: 'id',
     },
   },
 }, {
-  tableName: 'roles',
+  tableName: 'employee_roles',
   timestamps: true,
   paranoid: true, // Enables soft deletes
   createdAt: 'created_at',
@@ -70,36 +68,43 @@ const Role = sequelize.define('Role', {
 
 // Define associations in a separate function to avoid circular dependencies
 const setupAssociations = () => {
+  const { Employee } = require('./Employee');
+  const { Role } = require('./Role');
   const { Branch } = require('./Branch');
   const { User } = require('./User');
-  const { EmployeeRole } = require('./EmployeeRole');
 
-  // Role belongs to Branch
-  Role.belongsTo(Branch, {
+  // EmployeeRole belongs to Employee
+  EmployeeRole.belongsTo(Employee, {
+    foreignKey: 'employee_id',
+    as: 'Employee',
+  });
+
+  // EmployeeRole belongs to Role
+  EmployeeRole.belongsTo(Role, {
+    foreignKey: 'role_id',
+    as: 'Role',
+  });
+
+  // EmployeeRole belongs to Branch
+  EmployeeRole.belongsTo(Branch, {
     foreignKey: 'branch_id',
     as: 'Branch',
   });
 
-  // Role has many EmployeeRoles
-  Role.hasMany(EmployeeRole, {
-    foreignKey: 'role_id',
-    as: 'EmployeeRoles',
-  });
-
-  // Role belongs to User (created_by)
-  Role.belongsTo(User, {
+  // EmployeeRole belongs to User (created_by)
+  EmployeeRole.belongsTo(User, {
     foreignKey: 'created_by',
-    as: 'Creator',
+    as: 'CreatedBy',
   });
 
-  // Role belongs to User (updated_by)
-  Role.belongsTo(User, {
+  // EmployeeRole belongs to User (updated_by)
+  EmployeeRole.belongsTo(User, {
     foreignKey: 'updated_by',
-    as: 'Updater',
+    as: 'UpdatedBy',
   });
 };
 
 module.exports = {
-  Role,
+  EmployeeRole,
   setupAssociations,
 };

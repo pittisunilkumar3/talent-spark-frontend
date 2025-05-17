@@ -74,6 +74,45 @@ const Branch = sequelize.define('Branch', {
   deletedAt: 'deleted_at',
 });
 
+// Define associations in a separate function to avoid circular dependencies
+const setupAssociations = () => {
+  const { Department } = require('./Department');
+  const { Designation } = require('./Designation');
+  const { Role } = require('./Role');
+  const { User } = require('./User');
+
+  // Branch has many Departments
+  Branch.hasMany(Department, {
+    foreignKey: 'branch_id',
+    as: 'Departments',
+  });
+
+  // Branch has many Designations
+  Branch.hasMany(Designation, {
+    foreignKey: 'branch_id',
+    as: 'Designations',
+  });
+
+  // Branch has many Roles
+  Branch.hasMany(Role, {
+    foreignKey: 'branch_id',
+    as: 'Roles',
+  });
+
+  // Branch belongs to User (created_by)
+  Branch.belongsTo(User, {
+    foreignKey: 'created_by',
+    as: 'Creator',
+  });
+
+  // Branch belongs to User (updated_by)
+  Branch.belongsTo(User, {
+    foreignKey: 'updated_by',
+    as: 'Updater',
+  });
+};
+
 module.exports = {
   Branch,
+  setupAssociations,
 };

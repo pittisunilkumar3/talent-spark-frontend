@@ -219,26 +219,26 @@ export const branchService = {
     }
   },
 
-  // Get departments and designations by branch ID
-  getDepartmentsAndDesignationsByBranchId: async (branchId: number | string): Promise<any> => {
+  // Get branch with related data (departments, designations, and roles)
+  getBranchWithRelatedData: async (branchId: number | string): Promise<any> => {
     try {
-      console.log('Fetching departments and designations for branch ID:', branchId);
+      console.log('Fetching branch with related data for branch ID:', branchId);
 
       // Ensure branch ID is properly formatted
       const formattedBranchId = typeof branchId === 'string' ? branchId.trim() : branchId;
 
       // Log the full URL for debugging
-      const url = `/branch/${formattedBranchId}/departments-designations`;
-      console.log('API URL for departments and designations:', apiClient.defaults.baseURL + url);
+      const url = `/branch/${formattedBranchId}/with-related-data`;
+      console.log('API URL for branch with related data:', apiClient.defaults.baseURL + url);
 
       try {
         const response = await apiClient.get(url);
-        console.log('Branch departments and designations response:', response);
+        console.log('Branch with related data response:', response);
 
         // Return the raw response data
         return response.data;
       } catch (apiError: any) {
-        console.error('API error in getDepartmentsAndDesignationsByBranchId:', apiError);
+        console.error('API error in getBranchWithRelatedData:', apiError);
 
         // Log detailed error information
         console.error('Error details:', {
@@ -252,7 +252,7 @@ export const branchService = {
         // Try a direct fetch as fallback
         console.log('Attempting direct fetch as fallback...');
         const apiBaseUrl = apiClient.defaults.baseURL || 'http://localhost:3001/api';
-        const fullUrl = `${apiBaseUrl}/branch/${formattedBranchId}/departments-designations`;
+        const fullUrl = `${apiBaseUrl}/branch/${formattedBranchId}/with-related-data`;
 
         try {
           const token = localStorage.getItem('accessToken');
@@ -279,7 +279,33 @@ export const branchService = {
         }
       }
     } catch (error) {
-      console.error('Unexpected error in getDepartmentsAndDesignationsByBranchId:', error);
+      console.error('Unexpected error in getBranchWithRelatedData:', error);
+      throw error;
+    }
+  },
+
+  // Get departments and designations by branch ID (legacy method)
+  getDepartmentsAndDesignationsByBranchId: async (branchId: number | string): Promise<any> => {
+    try {
+      console.log('Using new getBranchWithRelatedData method instead of legacy getDepartmentsAndDesignationsByBranchId');
+
+      // Call the new method
+      const response = await branchService.getBranchWithRelatedData(branchId);
+
+      // Transform the response to match the old format
+      if (response && response.success && response.data) {
+        return {
+          success: true,
+          data: {
+            departments: response.data.departments || [],
+            designations: response.data.designations || []
+          }
+        };
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Error in getDepartmentsAndDesignationsByBranchId:', error);
       throw error;
     }
   },

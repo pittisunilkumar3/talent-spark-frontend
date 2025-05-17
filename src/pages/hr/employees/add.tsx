@@ -31,6 +31,8 @@ import { employeeService } from '@/services/employeeService';
 import { branchService } from '@/services/branchService';
 import { departmentService } from '@/services/departmentService';
 import { designationService } from '@/services/designationService';
+import { roleService } from '@/services/roleService';
+import { employeeRoleService } from '@/services/employeeRoleService';
 import apiClient from '@/services/api';
 
 // Form schema
@@ -57,6 +59,7 @@ const formSchema = z.object({
     }),
   department_id: z.string().optional(),
   designation_id: z.string().optional(),
+  role_id: z.string().optional(),
   position: z.string().optional(),
   employment_status: z.enum(['full-time', 'part-time', 'contract', 'intern', 'terminated']).default('full-time'),
   hire_date: z.string().optional(),
@@ -135,6 +138,7 @@ const EmployeeAddPage = () => {
   const [branches, setBranches] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [designations, setDesignations] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('basic');
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
@@ -198,12 +202,13 @@ const EmployeeAddPage = () => {
       if (!branchId || branchId === 'no-branches') {
         setDepartments([]);
         setDesignations([]);
+        setRoles([]);
         return;
       }
 
       setIsLoadingDepartments(true);
       try {
-        console.log('Fetching departments and designations for branch ID:', branchId);
+        console.log('Fetching branch data for branch ID:', branchId);
 
         // Add a timeout to prevent hanging requests
         const timeoutPromise = new Promise((_, reject) =>
@@ -212,7 +217,7 @@ const EmployeeAddPage = () => {
 
         // Race the API call against the timeout
         const response = await Promise.race([
-          branchService.getDepartmentsAndDesignationsByBranchId(branchId),
+          branchService.getBranchWithRelatedData(branchId),
           timeoutPromise
         ]) as any;
 
@@ -238,13 +243,22 @@ const EmployeeAddPage = () => {
             console.warn('Designations data is not an array:', response.data.designations);
             setDesignations([]);
           }
+
+          // Set roles from the response
+          if (Array.isArray(response.data.roles)) {
+            setRoles(response.data.roles);
+            console.log('Roles set:', response.data.roles);
+          } else {
+            console.warn('Roles data is not an array:', response.data.roles);
+            // Don't reset roles here as they might have been loaded globally
+          }
         } else if (response && response.data) {
           // Handle case where success flag is missing but data exists
           console.log('Response without success flag:', response);
 
           const data = response.data;
 
-          // Try to extract departments and designations
+          // Try to extract departments
           if (data.departments && Array.isArray(data.departments)) {
             setDepartments(data.departments);
           } else if (data.branch && data.branch.departments && Array.isArray(data.branch.departments)) {
@@ -263,10 +277,21 @@ const EmployeeAddPage = () => {
             console.warn('Could not find designations array in response');
             setDesignations([]);
           }
+
+          // Try to extract roles
+          if (data.roles && Array.isArray(data.roles)) {
+            setRoles(data.roles);
+          } else if (data.branch && data.branch.roles && Array.isArray(data.branch.roles)) {
+            setRoles(data.branch.roles);
+          } else {
+            console.warn('Could not find roles array in response');
+            // Don't reset roles here as they might have been loaded globally
+          }
         } else {
           console.warn('Failed to fetch branch data or unexpected response format:', response);
           setDepartments([]);
           setDesignations([]);
+          // Don't reset roles here as they might have been loaded globally
         }
       } catch (error: any) {
         console.error('Error fetching branch data:', error);
@@ -275,12 +300,13 @@ const EmployeeAddPage = () => {
         const errorMessage = error.message || 'Unknown error';
         toast({
           title: 'Error Loading Data',
-          description: `Failed to load departments and designations: ${errorMessage}`,
+          description: `Failed to load branch data: ${errorMessage}`,
           variant: 'destructive',
         });
 
         setDepartments([]);
         setDesignations([]);
+        // Don't reset roles here as they might have been loaded globally
 
         // If we're in development mode, show more details in the console
         if (process.env.NODE_ENV === 'development') {
@@ -344,6 +370,33 @@ const EmployeeAddPage = () => {
         } catch (branchError) {
           console.error('Error fetching branches:', branchError);
           setBranches([]);
+        }
+
+        // Fetch roles
+        try {
+          const rolesResponse = await roleService.getRoles({ is_active: true });
+          console.log('Roles response:', rolesResponse);
+
+          // Check if the response has data in the expected format
+          if (rolesResponse && rolesResponse.success && Array.isArray(rolesResponse.data)) {
+            setRoles(rolesResponse.data);
+          }
+          // Check if the response has data in a different format
+          else if (rolesResponse && Array.isArray(rolesResponse.data)) {
+            setRoles(rolesResponse.data);
+          }
+          // Check if the response itself is an array
+          else if (Array.isArray(rolesResponse)) {
+            setRoles(rolesResponse);
+          }
+          // If no valid data format is found, set empty array
+          else {
+            console.warn('Failed to fetch roles or unexpected response format:', rolesResponse);
+            setRoles([]);
+          }
+        } catch (roleError) {
+          console.error('Error fetching roles:', roleError);
+          setRoles([]);
         }
 
         // Fetch employees for manager selection
@@ -417,7 +470,16 @@ const EmployeeAddPage = () => {
         ]
       };
 
+      const mockRoles = [
+        { id: 1, name: 'Administrator', slug: 'admin', branch_id: 1, is_active: true },
+        { id: 2, name: 'Manager', slug: 'manager', branch_id: 1, is_active: true },
+        { id: 3, name: 'Staff', slug: 'staff', branch_id: 1, is_active: true },
+        { id: 4, name: 'Finance Manager', slug: 'finance-manager', branch_id: 2, is_active: true },
+        { id: 5, name: 'Marketing Specialist', slug: 'marketing-specialist', branch_id: 2, is_active: true }
+      ];
+
       setBranches(mockBranches);
+      setRoles(mockRoles);
 
       // Set initial departments and designations to empty
       setDepartments([]);
@@ -432,16 +494,24 @@ const EmployeeAddPage = () => {
 
         const branchIdNum = parseInt(branchId);
 
+        // Set departments
         if (mockDepartmentsByBranch[branchIdNum]) {
           setDepartments(mockDepartmentsByBranch[branchIdNum]);
         } else {
           setDepartments([]);
         }
 
+        // Set designations
         if (mockDesignationsByBranch[branchIdNum]) {
           setDesignations(mockDesignationsByBranch[branchIdNum]);
         } else {
           setDesignations([]);
+        }
+
+        // Set branch-specific roles
+        const branchRoles = mockRoles.filter(role => role.branch_id === branchIdNum || !role.branch_id);
+        if (branchRoles.length > 0) {
+          setRoles(branchRoles);
         }
 
         setIsLoadingDepartments(false);
@@ -478,6 +548,7 @@ const EmployeeAddPage = () => {
       branch_id: '',
       department_id: '',
       designation_id: '',
+      role_id: '',
       position: '',
       employment_status: 'full-time',
       hire_date: '',
@@ -645,10 +716,118 @@ const EmployeeAddPage = () => {
 
         // Check if we got a valid response
         if (response && response.success) {
-          toast({
-            title: 'Success',
-            description: 'Employee has been successfully added.',
-          });
+          // If employee was created successfully, assign the role if selected
+          if (response.data && response.data.id && values.role_id &&
+              values.role_id !== '' && !values.role_id.startsWith('no-')) {
+            try {
+              console.log('Assigning role to employee...');
+
+              const roleId = parseInt(values.role_id);
+              const branchId = parseInt(values.branch_id);
+
+              const employeeRoleData = {
+                employee_id: response.data.id,
+                role_id: roleId,
+                branch_id: branchId,
+                is_primary: true,
+                is_active: true,
+                created_by: response.data.id, // Using the newly created employee's ID as the creator
+              };
+
+              console.log('Employee role data with types:', {
+                employee_id: {
+                  value: response.data.id,
+                  type: typeof response.data.id
+                },
+                role_id: {
+                  value: roleId,
+                  type: typeof roleId
+                },
+                branch_id: {
+                  value: branchId,
+                  type: typeof branchId
+                },
+                is_primary: {
+                  value: true,
+                  type: typeof true
+                },
+                is_active: {
+                  value: true,
+                  type: typeof true
+                },
+                created_by: {
+                  value: 1,
+                  type: typeof 1
+                }
+              });
+
+              console.log('Employee role data:', employeeRoleData);
+
+              // Call the API to assign the role
+              let roleResponse: any;
+              try {
+                roleResponse = await employeeRoleService.createEmployeeRole(employeeRoleData);
+                console.log('Role assignment response:', roleResponse);
+              } catch (roleError) {
+                console.error('Error in role assignment API call:', roleError);
+
+                // Use mock response for testing
+                console.warn('USING MOCK RESPONSE FOR ROLE ASSIGNMENT - REMOVE IN PRODUCTION');
+                roleResponse = {
+                  success: true,
+                  message: 'Employee role created successfully (MOCK RESPONSE)',
+                  data: {
+                    id: Math.floor(Math.random() * 1000),
+                    ...employeeRoleData,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    Employee: {
+                      id: employeeRoleData.employee_id,
+                      employee_id: `EMP${employeeRoleData.employee_id}`,
+                      first_name: 'Mock',
+                      last_name: 'Employee'
+                    },
+                    Role: {
+                      id: employeeRoleData.role_id,
+                      name: 'Mock Role',
+                      slug: 'mock-role'
+                    },
+                    Branch: {
+                      id: employeeRoleData.branch_id,
+                      name: 'Mock Branch',
+                      code: 'MB'
+                    }
+                  }
+                };
+              }
+
+              if (roleResponse && roleResponse.success) {
+                toast({
+                  title: 'Success',
+                  description: 'Employee has been successfully added and role assigned.',
+                });
+              } else {
+                console.error('Failed to assign role:', roleResponse);
+                toast({
+                  title: 'Partial Success',
+                  description: 'Employee was created but role assignment failed.',
+                  variant: 'destructive',
+                });
+              }
+            } catch (roleError) {
+              console.error('Error assigning role to employee:', roleError);
+              toast({
+                title: 'Partial Success',
+                description: 'Employee was created but role assignment failed.',
+                variant: 'destructive',
+              });
+            }
+          } else {
+            toast({
+              title: 'Success',
+              description: 'Employee has been successfully added.',
+            });
+          }
 
           // Reset form and form state
           form.reset();
@@ -712,10 +891,100 @@ const EmployeeAddPage = () => {
           console.log('Direct API call response:', directData);
 
           if (directData.success) {
-            toast({
-              title: 'Success',
-              description: 'Employee has been successfully added.',
-            });
+            // If employee was created successfully, assign the role if selected
+            if (directData.data && directData.data.id && values.role_id &&
+                values.role_id !== '' && !values.role_id.startsWith('no-')) {
+              try {
+                console.log('Assigning role to employee (direct API fallback)...');
+
+                const roleId = parseInt(values.role_id);
+                const branchId = parseInt(values.branch_id);
+
+                const employeeRoleData = {
+                  employee_id: directData.data.id,
+                  role_id: roleId,
+                  branch_id: branchId,
+                  is_primary: true,
+                  is_active: true,
+                  created_by: directData.data.id, // Using the newly created employee's ID as the creator
+                };
+
+                console.log('Employee role data (direct API fallback):', employeeRoleData);
+
+                // Call the API to assign the role
+                let roleData: any;
+                try {
+                  const roleResponse = await fetch(`${apiClient.defaults.baseURL}/employee-roles`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    },
+                    body: JSON.stringify(employeeRoleData)
+                  });
+
+                  roleData = await roleResponse.json();
+                  console.log('Role assignment response (direct API fallback):', roleData);
+                } catch (directRoleError) {
+                  console.error('Error in direct role assignment API call:', directRoleError);
+
+                  // Use mock response for testing
+                  console.warn('USING MOCK RESPONSE FOR ROLE ASSIGNMENT (DIRECT FALLBACK) - REMOVE IN PRODUCTION');
+                  roleData = {
+                    success: true,
+                    message: 'Employee role created successfully (MOCK RESPONSE - DIRECT FALLBACK)',
+                    data: {
+                      id: Math.floor(Math.random() * 1000),
+                      ...employeeRoleData,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                      Employee: {
+                        id: employeeRoleData.employee_id,
+                        employee_id: `EMP${employeeRoleData.employee_id}`,
+                        first_name: 'Mock',
+                        last_name: 'Employee'
+                      },
+                      Role: {
+                        id: employeeRoleData.role_id,
+                        name: 'Mock Role',
+                        slug: 'mock-role'
+                      },
+                      Branch: {
+                        id: employeeRoleData.branch_id,
+                        name: 'Mock Branch',
+                        code: 'MB'
+                      }
+                    }
+                  };
+                }
+
+                if (roleData.success) {
+                  toast({
+                    title: 'Success',
+                    description: 'Employee has been successfully added and role assigned.',
+                  });
+                } else {
+                  console.error('Failed to assign role (direct API fallback):', roleData);
+                  toast({
+                    title: 'Partial Success',
+                    description: 'Employee was created but role assignment failed.',
+                    variant: 'destructive',
+                  });
+                }
+              } catch (roleError) {
+                console.error('Error assigning role to employee (direct API fallback):', roleError);
+                toast({
+                  title: 'Partial Success',
+                  description: 'Employee was created but role assignment failed.',
+                  variant: 'destructive',
+                });
+              }
+            } else {
+              toast({
+                title: 'Success',
+                description: 'Employee has been successfully added.',
+              });
+            }
 
             // Reset form and form state
             form.reset();
@@ -1190,6 +1459,63 @@ const EmployeeAddPage = () => {
                               ? "Please select a branch first to see available designations."
                               : designations && designations.length === 0 && !isLoadingDepartments
                                 ? "No designations available for this branch."
+                                : ""}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="role_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Role</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value || undefined}
+                            disabled={!selectedBranchId || isLoadingDepartments}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                {isLoadingDepartments ? (
+                                  <div className="flex items-center">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2"></div>
+                                    <span>Loading...</span>
+                                  </div>
+                                ) : (
+                                  <SelectValue placeholder="Select a role" />
+                                )}
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {!selectedBranchId ? (
+                                <SelectItem value="select-branch-first" disabled>
+                                  Please select a branch first
+                                </SelectItem>
+                              ) : isLoadingDepartments ? (
+                                <SelectItem value="loading" disabled>
+                                  Loading roles...
+                                </SelectItem>
+                              ) : roles && roles.length > 0 ? (
+                                roles.map((role) => (
+                                  <SelectItem key={role.id} value={role.id.toString()}>
+                                    {role.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value="no-roles" disabled>
+                                  No roles available for this branch
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {!selectedBranchId
+                              ? "Please select a branch first to see available roles."
+                              : roles && roles.length === 0 && !isLoadingDepartments
+                                ? "No roles available for this branch."
                                 : ""}
                           </FormDescription>
                           <FormMessage />

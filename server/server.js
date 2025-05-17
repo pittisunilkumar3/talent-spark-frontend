@@ -9,6 +9,8 @@ require('dotenv').config();
 const roleRoutes = require('./routes/roleRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const permissionRoutes = require('./routes/permissionRoutes');
+const branchRoutes = require('./routes/branchRoutes');
+const employeeRoleRoutes = require('./routes/employeeRoleRoutes');
 
 // Initialize express app
 const app = express();
@@ -39,6 +41,8 @@ app.options('*', cors(corsOptions));
 // API routes
 app.use('/api/roles', roleRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/branch', branchRoutes); // Changed from '/api/branches' to '/api/branch'
+app.use('/api/employee-roles', employeeRoleRoutes);
 app.use('/api', permissionRoutes); // This will register /api/permission-groups-with-categories
 
 // Root route
@@ -60,7 +64,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001; // Changed from 3001 to 3003
 
 // Test database connection and sync models
 const startServer = async () => {
@@ -78,12 +82,20 @@ const startServer = async () => {
     const { setupAssociations: setupEmployeeAssociations } = require('./models/Employee');
     const { setupAssociations: setupPermissionGroupAssociations } = require('./models/PermissionGroup');
     const { setupAssociations: setupPermissionCategoryAssociations } = require('./models/PermissionCategory');
+    const { setupAssociations: setupDepartmentAssociations } = require('./models/Department');
+    const { setupAssociations: setupDesignationAssociations } = require('./models/Designation');
+    const { setupAssociations: setupEmployeeRoleAssociations } = require('./models/EmployeeRole');
+    const { setupAssociations: setupBranchAssociations } = require('./models/Branch');
 
     setupRoleAssociations();
     setupUserAssociations();
     setupEmployeeAssociations();
     setupPermissionGroupAssociations();
     setupPermissionCategoryAssociations();
+    setupDepartmentAssociations();
+    setupDesignationAssociations();
+    setupEmployeeRoleAssociations();
+    setupBranchAssociations();
 
     // Seed data if in development mode
     if (process.env.NODE_ENV === 'development') {

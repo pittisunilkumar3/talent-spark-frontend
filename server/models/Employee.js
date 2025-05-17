@@ -245,6 +245,7 @@ const setupAssociations = () => {
   const { Department } = require('./Department');
   const { Designation } = require('./Designation');
   const { User } = require('./User');
+  const { EmployeeRole } = require('./EmployeeRole');
 
   // Employee belongs to Branch
   Employee.belongsTo(Branch, {
@@ -274,6 +275,12 @@ const setupAssociations = () => {
   Employee.hasMany(Employee, {
     foreignKey: 'reporting_to',
     as: 'Subordinates',
+  });
+
+  // Employee has many EmployeeRoles
+  Employee.hasMany(EmployeeRole, {
+    foreignKey: 'employee_id',
+    as: 'EmployeeRoles',
   });
 
   // Employee belongs to User (created_by)
