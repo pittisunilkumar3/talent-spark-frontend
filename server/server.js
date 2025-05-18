@@ -224,10 +224,13 @@ app.get('/list-uploads', (req, res) => {
 app.post('/direct-upload', (req, res) => {
   try {
     console.log('Direct upload request received');
+    console.log('Request headers:', req.headers);
+    console.log('Request body type:', typeof req.body);
 
     // Validate request
     if (!req.files) {
       console.error('No files in request');
+      console.error('Request body:', req.body);
       return res.status(400).json({
         success: false,
         message: 'No files in request',
@@ -253,6 +256,9 @@ app.post('/direct-upload', (req, res) => {
       size: uploadedFile.size,
       mimetype: uploadedFile.mimetype,
       tempFilePath: uploadedFile.tempFilePath || 'No temp file path',
+      md5: uploadedFile.md5,
+      encoding: uploadedFile.encoding,
+      truncated: uploadedFile.truncated,
     });
 
     // Generate a unique filename
@@ -262,19 +268,88 @@ app.post('/direct-upload', (req, res) => {
 
     console.log(`Saving file to: ${filePath}`);
 
+    // Check if upload directory exists and is writable
+    try {
+      if (!fs.existsSync(uploadPath)) {
+        console.log(`Creating upload directory: ${uploadPath}`);
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      // Test write permissions
+      const testFile = path.join(uploadPath, `test-write-${Date.now()}.txt`);
+      fs.writeFileSync(testFile, 'Test write permissions');
+      fs.unlinkSync(testFile);
+      console.log('Upload directory is writable');
+    } catch (dirError) {
+      console.error('Error with upload directory:', dirError);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error with upload directory',
+        error: dirError.message
+      });
+    }
+
     // Move the file to the upload directory
     uploadedFile.mv(filePath, (err) => {
       if (err) {
         console.error('Error moving file:', err);
-        return res.status(500).json({
-          success: false,
-          message: 'Error saving file',
-          error: err.message
-        });
+
+        // Try alternative method to save the file
+        try {
+          console.log('Trying alternative method to save file...');
+          fs.writeFileSync(filePath, uploadedFile.data);
+          console.log('File saved using alternative method');
+
+          // Check if file was actually created
+          if (fs.existsSync(filePath)) {
+            const stats = fs.statSync(filePath);
+            console.log(`File exists with size: ${stats.size} bytes`);
+
+            // Generate URL for the file
+            const fileUrl = `/upload/${fileName}`;
+            const fullFileUrl = `http://localhost:8081${fileUrl}`;
+
+            return res.status(200).json({
+              success: true,
+              message: 'File uploaded successfully (alternative method)',
+              data: {
+                fileName,
+                originalName: uploadedFile.name,
+                fileUrl,
+                fullFileUrl,
+                filePath,
+                size: uploadedFile.size,
+                mimetype: uploadedFile.mimetype
+              }
+            });
+          } else {
+            console.error('File still not created after alternative method');
+            return res.status(500).json({
+              success: false,
+              message: 'Failed to save file even with alternative method',
+              error: 'File not created'
+            });
+          }
+        } catch (altError) {
+          console.error('Alternative method failed:', altError);
+          return res.status(500).json({
+            success: false,
+            message: 'Error saving file (both methods failed)',
+            error: `${err.message}; Alternative method: ${altError.message}`
+          });
+        }
       }
 
       // File saved successfully
       console.log('File saved successfully at:', filePath);
+
+      // Verify file exists and has content
+      try {
+        const stats = fs.statSync(filePath);
+        console.log(`Verified file exists with size: ${stats.size} bytes`);
+      } catch (statError) {
+        console.error('Error verifying file:', statError);
+      }
 
       // Generate URL for the file
       const fileUrl = `/upload/${fileName}`;
@@ -303,6 +378,12 @@ app.post('/direct-upload', (req, res) => {
     });
   }
 });
+
+// Import the direct upload controller
+const { directUpload } = require('./controllers/directUploadController');
+
+// Direct upload endpoint
+app.post('/direct-upload', directUpload);
 
 // CORS configuration to allow frontend to access uploaded files
 app.use((req, res, next) => {
