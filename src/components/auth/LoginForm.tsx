@@ -29,12 +29,12 @@ const LoginForm = () => {
 
     try {
       setIsLoading(true);
-      await login(email, password);
-      navigate('/dashboard');
-      toast({
-        title: "Success",
-        description: "You have successfully logged in",
-      });
+      const success = await login(email, password);
+
+      if (success) {
+        navigate('/dashboard');
+        // Toast notification is now handled in the AuthContext
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -94,33 +94,12 @@ const LoginForm = () => {
             />
           </div>
 
-          {/* Demo accounts helper */}
+          {/* Login instructions */}
           <div className="bg-muted p-3 rounded-md">
-            <p className="text-sm font-medium mb-2">Demo Accounts:</p>
-            <div className="grid grid-cols-1 gap-2 text-xs">
-              <p>
-                <strong>CEO:</strong> ceo@talentspark.com
-              </p>
-              <p>
-                <strong>Branch Manager:</strong> branch-manager@talentspark.com
-              </p>
-              <p>
-                <strong>Marketing Head:</strong> marketing-head@talentspark.com
-              </p>
-              <p>
-                <strong>Marketing Supervisor:</strong> marketing-supervisor@talentspark.com
-              </p>
-              <p>
-                <strong>Marketing Recruiter:</strong> recruiter@talentspark.com
-              </p>
-              <p>
-                <strong>Marketing Associate:</strong> associate@talentspark.com
-              </p>
-              <p>
-                <strong>Applicant:</strong> applicant@example.com
-              </p>
-              <p className="italic">Password: any value works</p>
-            </div>
+            <p className="text-sm font-medium mb-2">Login Instructions:</p>
+            <p className="text-xs">
+              Please enter your employee email and password to log in. If you don't have an account, please contact your administrator.
+            </p>
           </div>
         </CardContent>
         <CardFooter>

@@ -50,31 +50,11 @@ const RegisterPage = () => {
       return;
     }
 
-    try {
-      setIsLoading(true);
-      
-      // In a real application, this would call an API to register the user
-      // For demo purposes, we'll simulate a delay and then log in the user
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Auto-login after registration (using the applicant role)
-      await login(email, password);
-      
-      toast({
-        title: "Registration Successful",
-        description: "Your account has been created successfully",
-      });
-      
-      navigate('/dashboard');
-    } catch (error) {
-      toast({
-        title: "Registration Failed",
-        description: "There was an error creating your account",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    toast({
+      title: "Registration Unavailable",
+      description: "Self-registration is not available. Please contact your administrator to create an employee account.",
+      variant: "destructive",
+    });
   };
 
   return (
@@ -89,9 +69,9 @@ const RegisterPage = () => {
                   <Logo size="md" />
                 </Link>
               </div>
-              <CardTitle className="text-2xl text-center">Create an Account</CardTitle>
+              <CardTitle className="text-2xl text-center">Registration Unavailable</CardTitle>
               <CardDescription className="text-center">
-                Enter your information to create an account
+                Self-registration is currently disabled. Please contact your administrator.
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleSubmit}>
@@ -140,8 +120,8 @@ const RegisterPage = () => {
                   />
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="terms" 
+                  <Checkbox
+                    id="terms"
                     checked={agreeTerms}
                     onCheckedChange={(checked) => setAgreeTerms(checked as boolean)}
                   />
@@ -161,9 +141,9 @@ const RegisterPage = () => {
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={isLoading}
+                    disabled={true}
                   >
-                    {isLoading ? "Creating Account..." : "Create Account"}
+                    Registration Disabled
                   </Button>
                   <div className="text-center text-sm">
                     Already have an account?{" "}
@@ -176,12 +156,12 @@ const RegisterPage = () => {
             </form>
           </Card>
         </div>
-        
+
         {/* Right Side - Features */}
         <div className="hidden md:block md:w-1/2 bg-gradient-to-br from-recruit-primary to-recruit-secondary p-8 text-white">
           <div className="h-full flex flex-col justify-center">
             <h2 className="text-2xl font-bold mb-6">Join Our Talent Network</h2>
-            
+
             <div className="space-y-6">
               <div className="flex items-start space-x-3">
                 <div className="bg-white/20 p-2 rounded-full">
@@ -194,7 +174,7 @@ const RegisterPage = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start space-x-3">
                 <div className="bg-white/20 p-2 rounded-full">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -206,7 +186,7 @@ const RegisterPage = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start space-x-3">
                 <div className="bg-white/20 p-2 rounded-full">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line><path d="m9 16 2 2 4-4"></path></svg>

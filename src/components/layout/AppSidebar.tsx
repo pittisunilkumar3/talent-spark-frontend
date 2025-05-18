@@ -126,6 +126,7 @@ const menuItems: Record<UserRole, ({ title: string; path: string; icon: React.El
         { title: 'Disable Employees', path: '/hr/employees/disabled', icon: UserX }
       ]
     },
+    { title: 'Resume Upload', path: '/resume-upload', icon: Upload },
     { title: 'Teams', path: '/teams', icon: Users },
     { title: 'Jobs Management', path: '/jobs-management', icon: Briefcase },
     { title: 'Candidates', path: '/candidates', icon: ClipboardCheck },
@@ -154,6 +155,7 @@ const menuItems: Record<UserRole, ({ title: string; path: string; icon: React.El
         { title: 'Disable Employees', path: '/hr/employees/disabled', icon: UserX }
       ]
     },
+    { title: 'Resume Upload', path: '/resume-upload', icon: Upload },
     { title: 'Teams', path: '/teams', icon: Users },
     { title: 'Jobs Management', path: '/jobs-management', icon: Briefcase },
     { title: 'Candidates', path: '/candidates', icon: Users },
@@ -180,6 +182,7 @@ const menuItems: Record<UserRole, ({ title: string; path: string; icon: React.El
         { title: 'Disable Employees', path: '/hr/employees/disabled', icon: UserX }
       ]
     },
+    { title: 'Resume Upload', path: '/resume-upload', icon: Upload },
     { title: 'Teams', path: '/teams', icon: Users },
     { title: 'Jobs Management', path: '/jobs-management', icon: Briefcase },
     { title: 'Candidates', path: '/candidates', icon: Users },

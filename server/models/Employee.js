@@ -216,6 +216,10 @@ const Employee = sequelize.define('Employee', {
       key: 'id',
     },
   },
+  last_login: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   tableName: 'employees',
   timestamps: true,
@@ -287,6 +291,13 @@ const setupAssociations = () => {
   Employee.belongsTo(User, {
     foreignKey: 'created_by',
     as: 'Creator',
+  });
+
+  // Employee has many RefreshTokens
+  const { RefreshToken } = require('./RefreshToken');
+  Employee.hasMany(RefreshToken, {
+    foreignKey: 'employee_id',
+    as: 'RefreshTokens',
   });
 };
 

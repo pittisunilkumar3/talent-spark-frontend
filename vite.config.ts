@@ -12,6 +12,14 @@ export default defineConfig(({ mode }) => ({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/upload': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/list-uploads': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
   plugins: [

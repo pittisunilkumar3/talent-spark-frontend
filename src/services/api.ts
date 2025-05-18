@@ -81,7 +81,7 @@ apiClient.interceptors.response.use(
         }
 
         // Call token refresh endpoint
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+        const response = await axios.post(`${API_BASE_URL}/employee-auth/refresh-token`, {
           refreshToken
         });
 

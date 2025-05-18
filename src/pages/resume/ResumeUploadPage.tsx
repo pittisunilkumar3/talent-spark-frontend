@@ -1,6 +1,6 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { Upload, FileUp, X, Check, FileText, Clock, Calendar, User, Briefcase, GraduationCap, Award, Tag, Eye, Download, Trash2, Phone, Mail, Info, MapPin, Building } from 'lucide-react';
+import { Upload, FileUp, X, Check, FileText, Clock, Calendar, User, Briefcase, GraduationCap, Award, Tag, Eye, Download, Trash2, Phone, Mail, Info, MapPin, Building, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CandidateInviteDialog from '@/components/resume/CandidateInviteDialog';
 import { format } from 'date-fns';
+import { useAuth } from '@/context/AuthContext';
 
 // Define the Candidate interface
 interface Candidate {
@@ -120,6 +121,9 @@ interface UploadedResume {
   uploadedBy: UserInfo;
   locationId?: string; // ID of the location this resume is associated with
   locationName?: string; // Name of the location (for display purposes)
+  resumeUrl?: string; // URL to access the resume file (from server or local blob)
+  fileName?: string; // Generated filename for the resume
+  serverFilePath?: string; // Physical path where the file is stored on the server
 }
 
 // Mock users for demonstration
@@ -170,34 +174,38 @@ const ResumeUploadPage = () => {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [candidateToInvite, setCandidateToInvite] = useState<{name: string, email: string} | null>(null);
 
-  // State for user role simulation
-  // In a real app, this would come from authentication context
-  const [currentUser, setCurrentUser] = useState<UserInfo>(mockUsers[0]); // Default to CEO (admin)
-  const [showRoleSelector, setShowRoleSelector] = useState(false);
+  // Get the authenticated user from the auth context
+  const { user } = useAuth();
 
   // State for location selection (for CEO users)
   const [selectedLocationId, setSelectedLocationId] = useState<string>(mockLocations[0].id);
   const [selectedLocation, setSelectedLocation] = useState(mockLocations[0]);
 
+  // Create a currentUser object from the authenticated user
+  const currentUser: UserInfo = {
+    id: user?.id || 'unknown',
+    name: user?.name || 'Unknown User',
+    role: (user?.role === 'ceo' ? 'CEO' :
+          user?.role === 'branch-manager' ? 'Branch Manager' :
+          user?.role === 'marketing-head' ? 'Marketing Head' :
+          user?.role === 'marketing-supervisor' ? 'Marketing Supervisor' :
+          user?.role === 'marketing-recruiter' ? 'Marketing Recruiter' :
+          'Marketing Associate') as UserInfo['role'],
+    avatar: user?.avatar
+  };
+
   // Check if user is admin (CEO or Branch Manager)
-  const isAdmin = currentUser.role === 'CEO' || currentUser.role === 'Branch Manager';
+  const isAdmin = user?.role === 'ceo' || user?.role === 'branch-manager';
 
   // Check if user is CEO (needs location selector)
-  const isCEO = currentUser.role === 'CEO';
+  const isCEO = user?.role === 'ceo';
 
   // Generate a unique ID for each resume
   const generateId = () => {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   };
 
-  // Function to change current user (for demonstration)
-  const changeUser = (userId: string) => {
-    const user = mockUsers.find(u => u.id === userId);
-    if (user) {
-      setCurrentUser(user);
-      setShowRoleSelector(false);
-    }
-  };
+  // No longer need the changeUser function since we're using real authentication
 
   // Sample resume data for demonstration
   const sampleResumeData = [
@@ -407,24 +415,49 @@ const ResumeUploadPage = () => {
       const savedResumes = localStorage.getItem('uploadedResumes');
 
       if (savedResumes) {
-        // Convert the dates back to Date objects
-        const parsedResumes = JSON.parse(savedResumes).map((resume: any) => ({
-          ...resume,
-          uploadDate: new Date(resume.uploadDate)
-        }));
+        // Parse the saved resumes
+        const parsedResumes = JSON.parse(savedResumes);
+
+        // Process each resume to restore File objects and dates
+        const processedResumes = parsedResumes.map((resume: any) => {
+          // Create a new resume object with the correct date
+          const processedResume = {
+            ...resume,
+            uploadDate: new Date(resume.uploadDate)
+          };
+
+          // If we have file information but not a real File object
+          if (resume.file && typeof resume.file === 'object' && !(resume.file instanceof File)) {
+            // Create a placeholder File object
+            try {
+              // Create a new File object if possible
+              const fileData = new Uint8Array(10); // Empty placeholder
+              processedResume.file = new File([fileData], resume.file.name || 'resume.pdf', {
+                type: resume.file.type || 'application/pdf'
+              });
+            } catch (fileError) {
+              console.error('Error creating File object:', fileError);
+              // Keep the file info as is if we can't create a File object
+            }
+          }
+
+          return processedResume;
+        });
 
         // Filter resumes based on user role
         // Admin users (CEO, Branch Manager) can see all resumes
         // Other users can only see their own uploads
         if (isAdmin) {
-          setUploadedResumes(parsedResumes);
+          setUploadedResumes(processedResumes);
         } else {
           // Filter to only show resumes uploaded by the current user
-          const filteredResumes = parsedResumes.filter(
+          const filteredResumes = processedResumes.filter(
             (resume: UploadedResume) => resume.uploadedBy.id === currentUser.id
           );
           setUploadedResumes(filteredResumes);
         }
+
+        console.log('Loaded', processedResumes.length, 'resumes from localStorage');
       } else {
         // If no resumes in localStorage, add sample data for demonstration
         localStorage.setItem('uploadedResumes', JSON.stringify(sampleResumeData));
@@ -498,68 +531,100 @@ const ResumeUploadPage = () => {
 
     setFiles(prev => [...prev, ...validFiles]);
 
-    // Auto-parse new files
+    // Auto-parse and upload new files
     setParsing(true);
     try {
-      for (const file of validFiles) {
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+
+        // Parse the resume text
         const text = await fileToText(file);
         const parsedResume = parseResume(text);
 
-        // Create a new uploaded resume entry with current user information and location
-        const newResume: UploadedResume = {
-          file: file,
-          parsedData: parsedResume,
-          uploadDate: new Date(),
-          id: generateId(),
-          status: 'completed',
-          uploadedBy: {
-            id: currentUser.id,
-            name: currentUser.name,
-            role: currentUser.role,
-            avatar: currentUser.avatar
-          },
-          // For CEO users, use the selected location
-          // For Branch Managers, use their assigned location (in a real app, this would come from user data)
-          // For this demo, we'll use a mock location based on user role
-          locationId: isCEO ? selectedLocationId :
-                     (currentUser.role === 'Branch Manager' ? 'loc-2' : undefined),
-          locationName: isCEO ? selectedLocation.name :
-                       (currentUser.role === 'Branch Manager' ? 'New York Office' : undefined)
-        };
+        try {
+          // Upload the file to the server
+          // Using the user ID as the employee ID for this demo
+          const employeeId = user?.id || 'user-1';
+          const uploadResult = await uploadResumeToServer(file, employeeId);
 
-        // Add to the uploaded resumes list
-        setUploadedResumes(prev => {
-          // Get all existing resumes from localStorage first
-          let allResumes: UploadedResume[] = [];
-          try {
-            const savedResumes = localStorage.getItem('uploadedResumes');
-            if (savedResumes) {
-              allResumes = JSON.parse(savedResumes).map((resume: any) => ({
-                ...resume,
-                uploadDate: new Date(resume.uploadDate)
-              }));
+          // Create a new uploaded resume entry with current user information and location
+          const newResume: UploadedResume = {
+            file: file,
+            parsedData: parsedResume,
+            uploadDate: new Date(),
+            id: generateId(),
+            status: 'completed',
+            uploadedBy: {
+              id: currentUser.id,
+              name: currentUser.name,
+              role: currentUser.role,
+              avatar: currentUser.avatar
+            },
+            // Store the server URL from the response
+            resumeUrl: uploadResult.data.fullFileUrl,
+            // Store the generated filename
+            fileName: uploadResult.data.fileName,
+            // For CEO users, use the selected location
+            // For Branch Managers, use their assigned location (in a real app, this would come from user data)
+            locationId: isCEO ? selectedLocationId :
+                      (currentUser.role === 'Branch Manager' ? 'loc-2' : undefined),
+            locationName: isCEO ? selectedLocation.name :
+                        (currentUser.role === 'Branch Manager' ? 'New York Office' : undefined),
+            // Store the server file path for reference
+            serverFilePath: uploadResult.data.filePath
+          };
+
+          // Add to the uploaded resumes list
+          setUploadedResumes(prev => {
+            // Get all existing resumes from localStorage first
+            let allResumes: UploadedResume[] = [];
+            try {
+              const savedResumes = localStorage.getItem('uploadedResumes');
+              if (savedResumes) {
+                allResumes = JSON.parse(savedResumes).map((resume: any) => ({
+                  ...resume,
+                  uploadDate: new Date(resume.uploadDate)
+                }));
+              }
+            } catch (error) {
+              console.error('Error loading existing resumes:', error);
             }
-          } catch (error) {
-            console.error('Error loading existing resumes:', error);
-          }
 
-          // Add the new resume
-          const updated = [...allResumes, newResume];
+            // Add the new resume
+            const updated = [...allResumes, newResume];
 
-          // Save all resumes to localStorage
-          try {
-            localStorage.setItem('uploadedResumes', JSON.stringify(updated));
-          } catch (error) {
-            console.error('Error saving resumes to localStorage:', error);
-          }
+            // Save all resumes to localStorage
+            try {
+              // Create a serializable version of the resume without the File object
+              const serializableResumes = updated.map(resume => ({
+                ...resume,
+                file: {
+                  name: resume.file.name,
+                  type: resume.file.type,
+                  size: resume.file.size,
+                },
+                uploadDate: resume.uploadDate.toISOString(),
+              }));
+              localStorage.setItem('uploadedResumes', JSON.stringify(serializableResumes));
+            } catch (error) {
+              console.error('Error saving resumes to localStorage:', error);
+            }
 
-          // Return only the resumes this user should see based on role
-          if (isAdmin) {
-            return updated;
-          } else {
-            return updated.filter(resume => resume.uploadedBy.id === currentUser.id);
-          }
-        });
+            // Return only the resumes this user should see based on role
+            if (isAdmin) {
+              return updated;
+            } else {
+              return updated.filter(resume => resume.uploadedBy.id === currentUser.id);
+            }
+          });
+        } catch (uploadError) {
+          console.error('Error uploading file to server:', uploadError);
+          toast({
+            title: `Upload Error: ${file.name}`,
+            description: uploadError.message || "Failed to upload file to server",
+            variant: "destructive",
+          });
+        }
       }
 
       // Show detailed success message with location information
@@ -567,7 +632,7 @@ const ResumeUploadPage = () => {
         title: "Resume Upload Successful",
         description: (
           <div className="space-y-1">
-            <p>{`${validFiles.length} resume${validFiles.length > 1 ? 's' : ''} uploaded and parsed successfully`}</p>
+            <p>{`${validFiles.length} resume${validFiles.length > 1 ? 's' : ''} uploaded to server successfully`}</p>
             <p className="text-xs text-muted-foreground">Uploaded by {currentUser.name} ({currentUser.role})</p>
             {(isCEO || currentUser.role === 'Branch Manager') && (
               <p className="text-xs text-muted-foreground">
@@ -575,6 +640,7 @@ const ResumeUploadPage = () => {
               </p>
             )}
             <p className="text-xs text-muted-foreground">Timestamp: {new Date().toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Files saved to server at: C:\Users\pitti\Downloads\QORE-main\upload</p>
           </div>
         ),
       });
@@ -663,7 +729,36 @@ const ResumeUploadPage = () => {
     setIsInviteDialogOpen(true);
   };
 
-  const handleUpload = () => {
+  // Function to upload a resume to the server
+  const uploadResumeToServer = async (file: File, employeeId: string) => {
+    try {
+      // Create a FormData object to send the file
+      const formData = new FormData();
+      formData.append('file', file); // Changed from 'resume' to 'file' to match the server endpoint
+
+      // Make the API call to the direct upload endpoint
+      const response = await fetch(`http://localhost:8081/direct-upload`, {
+        method: 'POST',
+        body: formData,
+        // No need to set Content-Type header as it's automatically set with boundary for FormData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to upload resume to server');
+      }
+
+      const data = await response.json();
+      console.log('Server response:', data);
+
+      return data;
+    } catch (error) {
+      console.error('Error uploading resume to server:', error);
+      throw error;
+    }
+  };
+
+  const handleUpload = async () => {
     if (files.length === 0) {
       toast({
         title: "No Files Selected",
@@ -674,21 +769,113 @@ const ResumeUploadPage = () => {
     }
 
     setUploading(true);
+    setUploadProgress(0);
 
-    // Simulate upload progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 5;
-      setUploadProgress(progress);
+    try {
+      // Process each file and upload to server
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
 
-      if (progress >= 100) {
-        clearInterval(interval);
-        setUploading(false);
+        // Log file details
+        console.log('Processing file:', file.name, 'Size:', file.size, 'Type:', file.type);
 
-        // Process the files
-        handleNewFiles(files);
+        // Calculate progress based on current file
+        const progressPerFile = 100 / files.length;
+        const baseProgress = i * progressPerFile;
+
+        // Update progress to show we're starting to process this file
+        setUploadProgress(baseProgress);
+
+        try {
+          // Parse the resume text locally first
+          const text = await fileToText(file);
+          const parsedResume = parseResume(text);
+
+          // Update progress to show we've parsed the file
+          setUploadProgress(baseProgress + (progressPerFile * 0.3));
+
+          // Upload the file to the server
+          // Using the user ID as the employee ID for this demo
+          const employeeId = user?.id || 'user-1';
+          const uploadResult = await uploadResumeToServer(file, employeeId);
+
+          // Update progress to show we've uploaded the file
+          setUploadProgress(baseProgress + (progressPerFile * 0.8));
+
+          // Create a new uploaded resume entry with current user information
+          const newResume = {
+            file: file,
+            parsedData: parsedResume,
+            uploadDate: new Date(),
+            id: generateId(),
+            status: 'completed',
+            uploadedBy: {
+              id: currentUser.id,
+              name: currentUser.name,
+              role: currentUser.role,
+              avatar: currentUser.avatar
+            },
+            // Store the server URL from the response
+            resumeUrl: uploadResult.data.fullFileUrl,
+            // Store the generated filename
+            fileName: uploadResult.data.fileName,
+            locationId: isCEO ? selectedLocationId : undefined,
+            locationName: isCEO ? selectedLocation.name : undefined,
+            // Store the server file path for reference
+            serverFilePath: uploadResult.data.filePath
+          };
+
+          // Add to the uploaded resumes list
+          const updatedResumes = [...uploadedResumes, newResume];
+          setUploadedResumes(updatedResumes);
+
+          // Save to localStorage for persistence
+          try {
+            // We need to create a serializable version of the resume without the File object
+            const serializableResumes = updatedResumes.map(resume => ({
+              ...resume,
+              file: {
+                name: resume.file.name,
+                type: resume.file.type,
+                size: resume.file.size,
+              },
+              uploadDate: resume.uploadDate.toISOString(),
+            }));
+            localStorage.setItem('uploadedResumes', JSON.stringify(serializableResumes));
+            console.log('Saved resumes to localStorage');
+          } catch (storageError) {
+            console.error('Error saving to localStorage:', storageError);
+          }
+
+        } catch (processError) {
+          console.error('Error processing file:', processError);
+          throw processError;
+        }
+
+        // Update progress to show we've completed this file
+        setUploadProgress(baseProgress + progressPerFile);
       }
-    }, 100);
+
+      // Set progress to 100% when all files are processed
+      setUploadProgress(100);
+
+      // Clear the file input
+      setFiles([]);
+
+      toast({
+        title: "Resume Upload Successful",
+        description: `${files.length} resume${files.length > 1 ? 's' : ''} uploaded to server successfully.`,
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload Error",
+        description: error.message || "An error occurred while uploading the resume to the server",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   // Function to download a resume
@@ -696,20 +883,61 @@ const ResumeUploadPage = () => {
     const resume = uploadedResumes.find(r => r.id === id);
     if (!resume) return;
 
-    // Create a download link
-    const url = URL.createObjectURL(resume.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = resume.file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Make sure we have file information
+    if (!resume.file) {
+      toast({
+        title: "Error",
+        description: "File information is not available",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    toast({
-      title: "Download Started",
-      description: `Downloading ${resume.file.name}`,
-    });
+    // Get the file name safely
+    const fileName = resume.file.name || "resume.pdf";
+
+    // Check if we have a server URL for the resume
+    if (resume.resumeUrl) {
+      console.log('Downloading from server URL:', resume.resumeUrl);
+
+      // Create a download link to the server URL
+      const a = document.createElement('a');
+      a.href = resume.resumeUrl;
+      a.target = '_blank'; // Open in new tab
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      toast({
+        title: "Download Started",
+        description: `Downloading ${fileName} from server`,
+      });
+    } else if (resume.file instanceof File) {
+      // Fallback to local file if server URL is not available
+      console.log('Downloading from local file object');
+
+      // Create a download link from the file object
+      const url = URL.createObjectURL(resume.file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Download Started",
+        description: `Downloading ${fileName} from local cache`,
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Unable to download file - no valid source found",
+        variant: "destructive",
+      });
+    }
   };
 
   // Function to clear all resumes
@@ -761,6 +989,70 @@ const ResumeUploadPage = () => {
     }
   };
 
+  // State for PDF viewer dialog
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState('');
+
+  // Function to view the resume in a new tab
+  const viewResumeFile = (id: string) => {
+    const resume = uploadedResumes.find(r => r.id === id);
+    if (!resume) return;
+
+    // Get the URL to the file
+    let fileUrl = '';
+
+    if (resume.resumeUrl) {
+      // Use the stored URL if available (this will be a local blob URL for locally processed files)
+      fileUrl = resume.resumeUrl;
+      console.log('Using stored resumeUrl:', fileUrl);
+    } else if (resume.file instanceof File) {
+      // Create a new blob URL if we have the file object but no URL
+      fileUrl = URL.createObjectURL(resume.file);
+      console.log('Created new blob URL from file object:', fileUrl);
+    } else {
+      // If no file information is available, show an error
+      toast({
+        title: "Error",
+        description: "File information is not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if this is a PDF file
+    const isPdf = resume.file && resume.file.name ?
+      resume.file.name.toLowerCase().endsWith('.pdf') : false;
+
+    // For PDF files, we can also show in an embedded viewer
+    if (isPdf) {
+      setPdfUrl(fileUrl);
+      setPdfViewerOpen(true);
+    }
+
+    console.log('Opening resume URL:', fileUrl);
+
+    if (isPdf) {
+      console.log('Opening PDF file:', fileUrl);
+
+      // For PDFs, open in a new tab and also show in the embedded viewer
+      window.open(fileUrl, '_blank');
+
+      toast({
+        title: "Opening PDF",
+        description: "PDF is also available in the embedded viewer",
+        duration: 3000,
+      });
+    } else {
+      // For other file types, just open in a new tab
+      window.open(fileUrl, '_blank');
+
+      toast({
+        title: "Opening Resume",
+        description: `Opening ${resume.file.name} in a new tab`,
+      });
+    }
+  };
+
   const renderResumeDetails = useCallback(() => {
     if (!selectedResumeId) return null;
 
@@ -792,6 +1084,19 @@ const ResumeUploadPage = () => {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" onClick={() => viewResumeFile(resume.id)}>
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View Resume File</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <Button variant="outline" size="icon" onClick={() => downloadResume(resume.id)}>
                       <Download className="h-4 w-4" />
                     </Button>
@@ -816,7 +1121,9 @@ const ResumeUploadPage = () => {
               <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">File Name</p>
-                <p className="text-sm font-medium truncate max-w-[200px]">{resume.file.name}</p>
+                <p className="text-sm font-medium truncate max-w-[200px]">
+                  {resume.fileName || resume.file.name}
+                </p>
               </div>
             </div>
             <div className="flex items-center">
@@ -844,6 +1151,17 @@ const ResumeUploadPage = () => {
                 <div>
                   <p className="text-xs text-muted-foreground">Location</p>
                   <p className="text-sm font-medium">{resume.locationName}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Show server file path if available */}
+            {resume.serverFilePath && (
+              <div className="flex items-center col-span-full">
+                <Info className="h-4 w-4 mr-2 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Server File Path</p>
+                  <p className="text-sm font-medium truncate max-w-full">{resume.serverFilePath}</p>
                 </div>
               </div>
             )}
@@ -939,8 +1257,77 @@ const ResumeUploadPage = () => {
   // State for tab management
   const [activeTab, setActiveTab] = useState<string>("upload");
 
+  // PDF Viewer Dialog
+  const PdfViewerDialog = () => {
+    if (!pdfViewerOpen) return null;
+
+    return (
+      <Dialog open={pdfViewerOpen} onOpenChange={setPdfViewerOpen}>
+        <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-4 py-2 border-b">
+            <div className="flex items-center justify-between w-full">
+              <DialogTitle>PDF Viewer</DialogTitle>
+              <DialogClose className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </DialogClose>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden bg-gray-100">
+            {pdfUrl ? (
+              <iframe
+                src={pdfUrl}
+                className="w-full h-full border-0"
+                title="PDF Viewer"
+                sandbox="allow-same-origin allow-scripts allow-forms"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-muted-foreground">No PDF file to display</p>
+              </div>
+            )}
+          </div>
+          <div className="p-2 border-t flex justify-between items-center">
+            <p className="text-xs text-muted-foreground">
+              This is a local PDF file stored in your browser's memory.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(pdfUrl, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-1" />
+                Open in New Tab
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Create a download link
+                  const a = document.createElement('a');
+                  a.href = pdfUrl;
+                  a.download = "resume.pdf";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                }}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* PDF Viewer Dialog */}
+      <PdfViewerDialog />
+
       <div className="border-b pb-3 md:pb-4 mb-2">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-0">
           <div>
@@ -1084,6 +1471,48 @@ const ResumeUploadPage = () => {
                   <li>Resumes will be associated with the <span className="font-medium text-foreground">selected location</span></li>
                 )}
               </ul>
+
+              {/* Test links for debugging */}
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <h4 className="text-sm font-medium text-yellow-700 mb-2">Debug Links</h4>
+                <div className="flex flex-col gap-2">
+                  <a
+                    href="/test"
+                    target="_blank"
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Test Server Connection
+                  </a>
+                  <a
+                    href="/upload/test.txt"
+                    target="_blank"
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Test File Access
+                  </a>
+                  <a
+                    href="/list-uploads"
+                    target="_blank"
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    List All Uploaded Files
+                  </a>
+                  <a
+                    href="/api/resumes/debug/list-files"
+                    target="_blank"
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Debug Resume Files
+                  </a>
+                  <a
+                    href="/upload/test-write-permission.txt"
+                    target="_blank"
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Test Write Permission File
+                  </a>
+                </div>
+              </div>
             </div>
 
             {/* Drop Zone */}
@@ -1334,7 +1763,16 @@ const ResumeUploadPage = () => {
                           <div className="flex justify-end gap-2">
                             <Button variant="outline" size="sm" onClick={() => viewResumeDetails(resume.id)}>
                               <Eye className="h-4 w-4 mr-1" />
-                              View
+                              View Details
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => viewResumeFile(resume.id)}
+                              className={resume.file && resume.file.name ? (resume.file.name.toLowerCase().endsWith('.pdf') ? "bg-red-50 hover:bg-red-100 border-red-200" : "") : ""}
+                            >
+                              <FileText className="h-4 w-4 mr-1" />
+                              {resume.file && resume.file.name ? (resume.file.name.toLowerCase().endsWith('.pdf') ? "View PDF" : "View File") : "View File"}
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => downloadResume(resume.id)}>
                               <Download className="h-4 w-4 mr-1" />
@@ -1487,7 +1925,16 @@ const ResumeUploadPage = () => {
                             <div className="flex justify-end gap-1 md:gap-2">
                               <Button variant="outline" size="sm" onClick={() => viewResumeDetails(resume.id)} className="h-8 w-8 md:w-auto md:px-3">
                                 <Eye className="h-4 w-4 md:mr-1" />
-                                <span className="hidden md:inline">View</span>
+                                <span className="hidden md:inline">Details</span>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => viewResumeFile(resume.id)}
+                                className={`h-8 w-8 md:w-auto md:px-3 ${resume.file && resume.file.name ? (resume.file.name.toLowerCase().endsWith('.pdf') ? "bg-red-50 hover:bg-red-100 border-red-200" : "") : ""}`}
+                              >
+                                <FileText className="h-4 w-4 md:mr-1" />
+                                <span className="hidden md:inline">{resume.file && resume.file.name ? (resume.file.name.toLowerCase().endsWith('.pdf') ? "PDF" : "File") : "File"}</span>
                               </Button>
                               <Button variant="outline" size="sm" onClick={() => downloadResume(resume.id)} className="h-8 w-8 md:w-auto md:px-3">
                                 <Download className="h-4 w-4 md:mr-1" />

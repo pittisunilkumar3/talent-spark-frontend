@@ -1968,43 +1968,541 @@ const EmployeeAddPage = () => {
                     <FormField
                       control={form.control}
                       name="resume"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Resume URL</FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://example.com/resume.pdf" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field: { value, onChange, ...field } }) => {
+                        // State for file upload
+                        const [selectedFile, setSelectedFile] = useState<File | null>(null);
+                        const [fileUrl, setFileUrl] = useState<string>('');
+                        const [fileName, setFileName] = useState<string>('');
+                        const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+
+                        // Handle file selection
+                        const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
+                          setUploadStatus('uploading');
+
+                          // Check file type
+                          const fileType = file.type;
+                          const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+                          if (!validTypes.includes(fileType)) {
+                            console.error('Invalid file type:', fileType);
+                            toast({
+                              title: "Invalid file type",
+                              description: "Please upload a PDF or Word document",
+                              variant: "destructive",
+                            });
+                            setUploadStatus('error');
+                            return;
+                          }
+
+                          // Check file size (max 5MB)
+                          const maxSize = 5 * 1024 * 1024;
+                          if (file.size > maxSize) {
+                            console.error('File too large:', file.size);
+                            toast({
+                              title: "File too large",
+                              description: "Please upload a file smaller than 5MB",
+                              variant: "destructive",
+                            });
+                            setUploadStatus('error');
+                            return;
+                          }
+
+                          try {
+                            // Create a local URL for the file
+                            const url = URL.createObjectURL(file);
+                            console.log('Created blob URL:', url);
+
+                            // Update state
+                            setSelectedFile(file);
+                            setFileUrl(url);
+                            setFileName(file.name);
+
+                            // Update form value with the URL
+                            onChange(url);
+
+                            setUploadStatus('success');
+                            toast({
+                              title: "Resume uploaded locally",
+                              description: `${file.name} has been processed successfully`,
+                            });
+                          } catch (error) {
+                            console.error('Error creating blob URL:', error);
+                            setUploadStatus('error');
+                            toast({
+                              title: "Upload Error",
+                              description: "Failed to process the file. Please try again.",
+                              variant: "destructive",
+                            });
+                          }
+                        };
+
+                        // Clear the selected file
+                        const clearFile = () => {
+                          if (fileUrl) {
+                            try {
+                              URL.revokeObjectURL(fileUrl);
+                              console.log('Revoked blob URL:', fileUrl);
+                            } catch (error) {
+                              console.error('Error revoking blob URL:', error);
+                            }
+                          }
+                          setSelectedFile(null);
+                          setFileUrl('');
+                          setFileName('');
+                          setUploadStatus('idle');
+                          onChange('');
+                        };
+
+                        // View the file
+                        const viewFile = () => {
+                          if (!fileUrl) {
+                            toast({
+                              title: "Error",
+                              description: "No file URL available to view",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+
+                          console.log('Opening file URL in new tab:', fileUrl);
+                          window.open(fileUrl, '_blank');
+                        };
+
+                        return (
+                          <FormItem>
+                            <FormLabel>Resume</FormLabel>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                {!selectedFile && (
+                                  <div className="w-full">
+                                    <Input
+                                      type="file"
+                                      accept=".pdf,.doc,.docx"
+                                      onChange={handleFileChange}
+                                      {...field}
+                                    />
+                                  </div>
+                                )}
+
+                                {selectedFile && (
+                                  <div className="flex items-center justify-between w-full p-2 border rounded-md bg-muted/20">
+                                    <div className="flex items-center gap-2">
+                                      <div className="p-2 bg-primary/10 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                                          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                          <polyline points="14 2 14 8 20 8" />
+                                        </svg>
+                                      </div>
+                                      <div className="text-sm">
+                                        <p className="font-medium truncate max-w-[200px]">{fileName}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {selectedFile.size < 1024 * 1024
+                                            ? `${Math.round(selectedFile.size / 1024)} KB`
+                                            : `${Math.round(selectedFile.size / (1024 * 1024) * 10) / 10} MB`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={viewFile}
+                                      >
+                                        View
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={clearFile}
+                                      >
+                                        Remove
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {uploadStatus === 'success' && (
+                                <div className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                                  File processed successfully. The file is stored locally in your browser.
+                                </div>
+                              )}
+
+                              {uploadStatus === 'error' && (
+                                <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                                  Error processing file. Please try again with a different file.
+                                </div>
+                              )}
+
+                              <FormDescription>
+                                Upload a resume in PDF or Word format (max 5MB). Files are processed locally in your browser.
+                              </FormDescription>
+                              <FormMessage />
+                            </div>
+                          </FormItem>
+                        );
+                      }}
                     />
 
                     <FormField
                       control={form.control}
                       name="joining_letter"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Joining Letter URL</FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://example.com/joining-letter.pdf" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field: { value, onChange, ...field } }) => {
+                        // State for file upload
+                        const [selectedFile, setSelectedFile] = useState<File | null>(null);
+                        const [fileUrl, setFileUrl] = useState<string>('');
+                        const [fileName, setFileName] = useState<string>('');
+                        const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+
+                        // Handle file selection
+                        const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
+                          setUploadStatus('uploading');
+
+                          // Check file type
+                          const fileType = file.type;
+                          const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+                          if (!validTypes.includes(fileType)) {
+                            console.error('Invalid file type:', fileType);
+                            toast({
+                              title: "Invalid file type",
+                              description: "Please upload a PDF or Word document",
+                              variant: "destructive",
+                            });
+                            setUploadStatus('error');
+                            return;
+                          }
+
+                          // Check file size (max 5MB)
+                          const maxSize = 5 * 1024 * 1024;
+                          if (file.size > maxSize) {
+                            console.error('File too large:', file.size);
+                            toast({
+                              title: "File too large",
+                              description: "Please upload a file smaller than 5MB",
+                              variant: "destructive",
+                            });
+                            setUploadStatus('error');
+                            return;
+                          }
+
+                          try {
+                            // Create a local URL for the file
+                            const url = URL.createObjectURL(file);
+                            console.log('Created blob URL:', url);
+
+                            // Update state
+                            setSelectedFile(file);
+                            setFileUrl(url);
+                            setFileName(file.name);
+
+                            // Update form value with the URL
+                            onChange(url);
+
+                            setUploadStatus('success');
+                            toast({
+                              title: "Joining Letter uploaded locally",
+                              description: `${file.name} has been processed successfully`,
+                            });
+                          } catch (error) {
+                            console.error('Error creating blob URL:', error);
+                            setUploadStatus('error');
+                            toast({
+                              title: "Upload Error",
+                              description: "Failed to process the file. Please try again.",
+                              variant: "destructive",
+                            });
+                          }
+                        };
+
+                        // Clear the selected file
+                        const clearFile = () => {
+                          if (fileUrl) {
+                            try {
+                              URL.revokeObjectURL(fileUrl);
+                              console.log('Revoked blob URL:', fileUrl);
+                            } catch (error) {
+                              console.error('Error revoking blob URL:', error);
+                            }
+                          }
+                          setSelectedFile(null);
+                          setFileUrl('');
+                          setFileName('');
+                          setUploadStatus('idle');
+                          onChange('');
+                        };
+
+                        // View the file
+                        const viewFile = () => {
+                          if (!fileUrl) {
+                            toast({
+                              title: "Error",
+                              description: "No file URL available to view",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+
+                          console.log('Opening file URL in new tab:', fileUrl);
+                          window.open(fileUrl, '_blank');
+                        };
+
+                        return (
+                          <FormItem>
+                            <FormLabel>Joining Letter</FormLabel>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                {!selectedFile && (
+                                  <div className="w-full">
+                                    <Input
+                                      type="file"
+                                      accept=".pdf,.doc,.docx"
+                                      onChange={handleFileChange}
+                                      {...field}
+                                    />
+                                  </div>
+                                )}
+
+                                {selectedFile && (
+                                  <div className="flex items-center justify-between w-full p-2 border rounded-md bg-muted/20">
+                                    <div className="flex items-center gap-2">
+                                      <div className="p-2 bg-primary/10 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                                          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                          <polyline points="14 2 14 8 20 8" />
+                                        </svg>
+                                      </div>
+                                      <div className="text-sm">
+                                        <p className="font-medium truncate max-w-[200px]">{fileName}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {selectedFile.size < 1024 * 1024
+                                            ? `${Math.round(selectedFile.size / 1024)} KB`
+                                            : `${Math.round(selectedFile.size / (1024 * 1024) * 10) / 10} MB`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={viewFile}
+                                      >
+                                        View
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={clearFile}
+                                      >
+                                        Remove
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {uploadStatus === 'success' && (
+                                <div className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                                  File processed successfully. The file is stored locally in your browser.
+                                </div>
+                              )}
+
+                              {uploadStatus === 'error' && (
+                                <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                                  Error processing file. Please try again with a different file.
+                                </div>
+                              )}
+
+                              <FormDescription>
+                                Upload a joining letter in PDF or Word format (max 5MB). Files are processed locally in your browser.
+                              </FormDescription>
+                              <FormMessage />
+                            </div>
+                          </FormItem>
+                        );
+                      }}
                     />
 
                     <FormField
                       control={form.control}
                       name="other_documents"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Other Documents</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="https://example.com/document1.pdf, https://example.com/document2.pdf" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field: { value, onChange, ...field } }) => {
+                        // State for file upload
+                        const [selectedFile, setSelectedFile] = useState<File | null>(null);
+                        const [fileUrl, setFileUrl] = useState<string>('');
+                        const [fileName, setFileName] = useState<string>('');
+                        const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+
+                        // Handle file selection
+                        const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
+                          setUploadStatus('uploading');
+
+                          // Check file size (max 10MB)
+                          const maxSize = 10 * 1024 * 1024;
+                          if (file.size > maxSize) {
+                            console.error('File too large:', file.size);
+                            toast({
+                              title: "File too large",
+                              description: "Please upload a file smaller than 10MB",
+                              variant: "destructive",
+                            });
+                            setUploadStatus('error');
+                            return;
+                          }
+
+                          try {
+                            // Create a local URL for the file
+                            const url = URL.createObjectURL(file);
+                            console.log('Created blob URL:', url);
+
+                            // Update state
+                            setSelectedFile(file);
+                            setFileUrl(url);
+                            setFileName(file.name);
+
+                            // Update form value with the URL
+                            onChange(url);
+
+                            setUploadStatus('success');
+                            toast({
+                              title: "Document uploaded locally",
+                              description: `${file.name} has been processed successfully`,
+                            });
+                          } catch (error) {
+                            console.error('Error creating blob URL:', error);
+                            setUploadStatus('error');
+                            toast({
+                              title: "Upload Error",
+                              description: "Failed to process the file. Please try again.",
+                              variant: "destructive",
+                            });
+                          }
+                        };
+
+                        // Clear the selected file
+                        const clearFile = () => {
+                          if (fileUrl) {
+                            try {
+                              URL.revokeObjectURL(fileUrl);
+                              console.log('Revoked blob URL:', fileUrl);
+                            } catch (error) {
+                              console.error('Error revoking blob URL:', error);
+                            }
+                          }
+                          setSelectedFile(null);
+                          setFileUrl('');
+                          setFileName('');
+                          setUploadStatus('idle');
+                          onChange('');
+                        };
+
+                        // View the file
+                        const viewFile = () => {
+                          if (!fileUrl) {
+                            toast({
+                              title: "Error",
+                              description: "No file URL available to view",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+
+                          console.log('Opening file URL in new tab:', fileUrl);
+                          window.open(fileUrl, '_blank');
+                        };
+
+                        return (
+                          <FormItem>
+                            <FormLabel>Other Documents</FormLabel>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                {!selectedFile && (
+                                  <div className="w-full">
+                                    <Input
+                                      type="file"
+                                      accept=".pdf,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png"
+                                      onChange={handleFileChange}
+                                      {...field}
+                                    />
+                                  </div>
+                                )}
+
+                                {selectedFile && (
+                                  <div className="flex items-center justify-between w-full p-2 border rounded-md bg-muted/20">
+                                    <div className="flex items-center gap-2">
+                                      <div className="p-2 bg-primary/10 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                                          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                          <polyline points="14 2 14 8 20 8" />
+                                        </svg>
+                                      </div>
+                                      <div className="text-sm">
+                                        <p className="font-medium truncate max-w-[200px]">{fileName}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {selectedFile.size < 1024 * 1024
+                                            ? `${Math.round(selectedFile.size / 1024)} KB`
+                                            : `${Math.round(selectedFile.size / (1024 * 1024) * 10) / 10} MB`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={viewFile}
+                                      >
+                                        View
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={clearFile}
+                                      >
+                                        Remove
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {uploadStatus === 'success' && (
+                                <div className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                                  File processed successfully. The file is stored locally in your browser.
+                                </div>
+                              )}
+
+                              {uploadStatus === 'error' && (
+                                <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                                  Error processing file. Please try again with a different file.
+                                </div>
+                              )}
+
+                              <FormDescription>
+                                Upload additional documents (max 10MB). Files are processed locally in your browser.
+                              </FormDescription>
+                              <FormMessage />
+                            </div>
+                          </FormItem>
+                        );
+                      }}
                     />
 
                     <FormField

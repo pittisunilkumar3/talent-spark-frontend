@@ -64,8 +64,9 @@ import TeamsPage from "./pages/teams/TeamsPage";
 import TeamDetailsPage from "./pages/teams/TeamDetailsPage";
 import ProfileDetailsPage from "./pages/teams/ProfileDetailsPage";
 
-// Profiles Page
+// Profiles Pages
 import ProfilesPage from "./pages/profiles/ProfilesPage";
+import EmployeeProfilePage from "./pages/profiles/EmployeeProfilePage";
 
 // Reports Page
 import ReportsPage from "./pages/reports/ReportsPage";
@@ -295,17 +296,17 @@ const App = () => (
               element={
                 <AuthProtection allowedRoles={['ceo', 'branch-manager', 'marketing-head', 'marketing-supervisor', 'marketing-recruiter', 'marketing-associate']}>
                   <MainLayout>
-                    <ProfileDetailsPage />
+                    <EmployeeProfilePage />
                   </MainLayout>
                 </AuthProtection>
               }
             />
 
-            {/* Resume Management - For Marketing Recruiter & Marketing Associate */}
+            {/* Resume Management - For All Roles except Applicant */}
             <Route
               path="/resume-upload"
               element={
-                <AuthProtection allowedRoles={['ceo', 'marketing-recruiter', 'marketing-associate']}>
+                <AuthProtection allowedRoles={['ceo', 'branch-manager', 'marketing-head', 'marketing-supervisor', 'marketing-recruiter', 'marketing-associate']}>
                   <MainLayout>
                     <ResumeUploadPage />
                   </MainLayout>

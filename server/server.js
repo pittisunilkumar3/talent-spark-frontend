@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
+const fileUpload = require('express-fileupload');
+const path = require('path');
 const sequelize = require('./config/database');
 require('dotenv').config();
 
@@ -11,6 +13,8 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const permissionRoutes = require('./routes/permissionRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const employeeRoleRoutes = require('./routes/employeeRoleRoutes');
+const employeeAuthRoutes = require('./routes/employeeAuthRoutes');
+const resumeRoutes = require('./routes/resumeRoutes');
 
 // Initialize express app
 const app = express();
@@ -35,6 +39,280 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// File upload middleware
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+  abortOnLimit: true,
+  createParentPath: true,
+  useTempFiles: true, // Use temp files instead of memory for file uploads
+  tempFileDir: path.join(__dirname, 'temp'), // Temporary directory for file uploads
+  parseNested: true, // Parse nested form data
+  debug: process.env.NODE_ENV === 'development'
+}));
+
+// Serve static files from the uploads directories
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Use absolute path for the upload directory to ensure it works correctly
+const uploadPath = 'C:\\Users\\pitti\\Downloads\\QORE-main\\upload';
+
+// Serve files from the upload directory
+app.use('/upload', express.static(uploadPath));
+
+// Log the static file paths for debugging
+console.log('Serving static files from:');
+console.log(`- /uploads: ${path.join(__dirname, 'uploads')}`);
+console.log(`- /upload: ${uploadPath}`);
+
+// Create a specific route for serving resume files
+app.get('/upload/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(uploadPath, filename);
+
+  console.log(`Request for file: ${filePath}`);
+
+  // Check if file exists
+  if (fs.existsSync(filePath)) {
+    console.log(`File exists, sending: ${filePath}`);
+
+    // Set appropriate content type based on file extension
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+    } else if (ext === '.doc') {
+      res.setHeader('Content-Type', 'application/msword');
+      res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    } else if (ext === '.docx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    } else if (ext === '.txt') {
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+    }
+
+    // Set cache control headers
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // For PDF files, use sendFile with specific options
+    if (ext === '.pdf') {
+      try {
+        console.log(`Sending PDF file: ${filePath}`);
+
+        // Additional headers for PDF files
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Accept-Ranges', 'bytes');
+
+        // Use sendFile with options for PDF files
+        res.sendFile(filePath, {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'inline; filename="' + filename + '"'
+          }
+        }, (err) => {
+          if (err) {
+            console.error(`Error sending PDF file: ${err.message}`);
+            if (!res.headersSent) {
+              res.status(500).send('Error sending PDF file');
+            }
+          }
+        });
+      } catch (error) {
+        console.error(`Error setting up PDF file send: ${error.message}`);
+        res.status(500).send('Error processing PDF file');
+      }
+    } else {
+      // For other file types, use sendFile
+      res.sendFile(filePath, (err) => {
+        if (err) {
+          console.error(`Error sending file: ${err.message}`);
+          if (!res.headersSent) {
+            res.status(500).send('Error sending file');
+          }
+        }
+      });
+    }
+  } else {
+    console.log(`File not found: ${filePath}`);
+    res.status(404).send('File not found');
+  }
+});
+
+
+
+// Create the upload directory if it doesn't exist
+const fs = require('fs');
+if (!fs.existsSync(uploadPath)) {
+  console.log(`Creating upload directory: ${uploadPath}`);
+  fs.mkdirSync(uploadPath, { recursive: true });
+}
+
+// Create test files in the upload directory
+const testTxtPath = path.join(uploadPath, 'test.txt');
+try {
+  fs.writeFileSync(testTxtPath, 'This is a test file to verify file serving is working.');
+  console.log(`Created test text file at: ${testTxtPath}`);
+} catch (error) {
+  console.error(`Error creating test text file: ${error.message}`);
+}
+
+// Create a simple PDF file for testing
+
+// Function to create a simple PDF file
+const createTestPdf = () => {
+  try {
+    // Path to a sample PDF file in the project
+    const samplePdfPath = path.join(__dirname, 'sample.pdf');
+
+    // Check if the sample PDF exists
+    if (fs.existsSync(samplePdfPath)) {
+      // Copy the sample PDF to the upload directory
+      const testPdfPath = path.join(uploadPath, 'test.pdf');
+      fs.copyFileSync(samplePdfPath, testPdfPath);
+      console.log(`Copied sample PDF to: ${testPdfPath}`);
+    } else {
+      console.log('Sample PDF not found, skipping PDF test file creation');
+    }
+  } catch (error) {
+    console.error(`Error creating test PDF file: ${error.message}`);
+  }
+};
+
+// Try to create the test PDF file
+createTestPdf();
+
+// Add test routes to verify the server is running
+app.get('/test', (req, res) => {
+  res.send('Server is running correctly!');
+});
+
+// Add a test route to list all files in the upload directory
+app.get('/list-uploads', (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadPath);
+    const fileDetails = files.map(file => {
+      const filePath = path.join(uploadPath, file);
+      const stats = fs.statSync(filePath);
+      return {
+        name: file,
+        path: filePath,
+        size: stats.size,
+        created: stats.birthtime,
+        modified: stats.mtime,
+        isDirectory: stats.isDirectory()
+      };
+    });
+
+    res.json({
+      success: true,
+      message: 'Files in upload directory',
+      uploadPath,
+      files: fileDetails
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error listing files',
+      error: error.message
+    });
+  }
+});
+
+// Simple direct file upload endpoint that doesn't rely on database
+app.post('/direct-upload', (req, res) => {
+  try {
+    console.log('Direct upload request received');
+
+    // Validate request
+    if (!req.files) {
+      console.error('No files in request');
+      return res.status(400).json({
+        success: false,
+        message: 'No files in request',
+      });
+    }
+
+    console.log('Files in request:', Object.keys(req.files));
+
+    if (!req.files.file) {
+      console.error('No file found in request. Available files:', Object.keys(req.files));
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded. Make sure the file field is named "file"',
+      });
+    }
+
+    // Get the uploaded file
+    const uploadedFile = req.files.file;
+
+    // Log file details for debugging
+    console.log('File details:', {
+      name: uploadedFile.name,
+      size: uploadedFile.size,
+      mimetype: uploadedFile.mimetype,
+      tempFilePath: uploadedFile.tempFilePath || 'No temp file path',
+    });
+
+    // Generate a unique filename
+    const fileExtension = path.extname(uploadedFile.name);
+    const fileName = `upload_${Date.now()}${fileExtension}`;
+    const filePath = path.join(uploadPath, fileName);
+
+    console.log(`Saving file to: ${filePath}`);
+
+    // Move the file to the upload directory
+    uploadedFile.mv(filePath, (err) => {
+      if (err) {
+        console.error('Error moving file:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Error saving file',
+          error: err.message
+        });
+      }
+
+      // File saved successfully
+      console.log('File saved successfully at:', filePath);
+
+      // Generate URL for the file
+      const fileUrl = `/upload/${fileName}`;
+      const fullFileUrl = `http://localhost:8081${fileUrl}`;
+
+      return res.status(200).json({
+        success: true,
+        message: 'File uploaded successfully',
+        data: {
+          fileName,
+          originalName: uploadedFile.name,
+          fileUrl,
+          fullFileUrl,
+          filePath,
+          size: uploadedFile.size,
+          mimetype: uploadedFile.mimetype
+        }
+      });
+    });
+  } catch (error) {
+    console.error('File upload error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'An error occurred while uploading the file',
+      error: error.message
+    });
+  }
+});
+
+// CORS configuration to allow frontend to access uploaded files
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, X-Content-Type');
+  next();
+});
+
 // Handle OPTIONS requests for CORS preflight
 app.options('*', cors(corsOptions));
 
@@ -44,6 +322,8 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/branch', branchRoutes); // Changed from '/api/branches' to '/api/branch'
 app.use('/api/employee-roles', employeeRoleRoutes);
 app.use('/api', permissionRoutes); // This will register /api/permission-groups-with-categories
+app.use('/api/employee-auth', employeeAuthRoutes);
+app.use('/api/resumes', resumeRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -64,7 +344,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3001; // Changed from 3001 to 3003
+const PORT = process.env.PORT || 8081; // Changed to avoid conflict with frontend port
 
 // Test database connection and sync models
 const startServer = async () => {
@@ -86,6 +366,7 @@ const startServer = async () => {
     const { setupAssociations: setupDesignationAssociations } = require('./models/Designation');
     const { setupAssociations: setupEmployeeRoleAssociations } = require('./models/EmployeeRole');
     const { setupAssociations: setupBranchAssociations } = require('./models/Branch');
+    const { setupAssociations: setupRefreshTokenAssociations } = require('./models/RefreshToken');
 
     setupRoleAssociations();
     setupUserAssociations();
@@ -96,6 +377,7 @@ const startServer = async () => {
     setupDesignationAssociations();
     setupEmployeeRoleAssociations();
     setupBranchAssociations();
+    setupRefreshTokenAssociations();
 
     // Seed data if in development mode
     if (process.env.NODE_ENV === 'development') {
